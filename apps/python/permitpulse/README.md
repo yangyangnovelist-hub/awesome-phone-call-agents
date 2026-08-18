@@ -36,6 +36,10 @@ The task text requires AI disclosure and forbids applicant impersonation, invent
 
 Stable idempotency keys are derived from the project request, permit reference and destination so the workflow can be reconciled instead of blindly creating a duplicate call.
 
+### Cancellation / rollback
+
+PermitPulse creates only one-off calls and no recurring schedule. Before execution, cancellation means simply staying in preview mode. After a call has been accepted by the provider, the phone side effect cannot be rolled back by this app; do not launch a replacement call until the existing CALL-E call ID has been reconciled. PermitPulse never performs a downstream permit-system mutation automatically, so an incorrect or disputed result can be discarded and routed to a human without changing the authoritative project record.
+
 ## Install
 
 From this directory:
