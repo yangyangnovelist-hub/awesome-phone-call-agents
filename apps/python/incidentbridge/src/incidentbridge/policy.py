@@ -12,7 +12,10 @@ from incidentbridge.models import IncidentRequest, mask_phone
 
 PHONE_LIKE = re.compile(r"(?<!\w)\+?[1-9]\d{7,14}(?!\w)")
 EMAIL_LIKE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-TOKEN_LIKE = re.compile(r"(?i)(bearer|token|api[_ -]?key)\s*[:=]?\s*\S+")
+TOKEN_LIKE = re.compile(
+    r"(?i)\b(bearer|token|api[_ -]?key|access[_ -]?token|password|private[_ -]?key|"
+    r"client[_ -]?secret|secret|credential)\b\s*[:=]?\s*\S+"
+)
 TERMINAL_SUCCESS = {"completed", "succeeded"}
 MIN_CONFIDENCE = 0.8
 RECIPIENT_SPEAKERS = {"recipient", "user", "callee"}
@@ -145,6 +148,8 @@ def valid_result(value: Any) -> bool:
             continue
         if not isinstance(field_value, str) or len(field_value) > rule.get("maxLength", 10_000):
             return False
+        if field == "ticket_id" and not field_value.strip():
+            return False
         if "enum" in rule and field_value not in rule["enum"]:
             return False
     return True
@@ -177,6 +182,35 @@ def _recipient_transcript(provider_result: dict[str, Any], destination: str) -> 
     return "\n".join(turns)
 
 
+def _ticket_tokens(value: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", value.casefold())
+
+
+def _meaningful_ticket_id(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    stripped = value.strip()
+    tokens = _ticket_tokens(stripped)
+    return (
+        stripped.casefold() != "unknown"
+        and bool(tokens)
+        and sum(len(token) for token in tokens) >= 3
+    )
+
+
+def _ticket_corroborated(ticket_id: Any, transcript: str) -> bool:
+    if not _meaningful_ticket_id(ticket_id):
+        return False
+    assert isinstance(ticket_id, str)
+    expected = _ticket_tokens(ticket_id)
+    observed = _ticket_tokens(transcript)
+    width = len(expected)
+    return any(
+        observed[index : index + width] == expected
+        for index in range(len(observed) - width + 1)
+    )
+
+
 def _bound_and_corroborated(
     request: IncidentRequest,
     provider_result: dict[str, Any],
@@ -198,12 +232,7 @@ def _bound_and_corroborated(
     ):
         return False
     transcript = _recipient_transcript(provider_result, request.support_phone)
-    ticket_id = structured.get("ticket_id")
-    return (
-        isinstance(ticket_id, str)
-        and ticket_id != "unknown"
-        and ticket_id.casefold() in transcript.casefold()
-    )
+    return _ticket_corroborated(structured.get("ticket_id"), transcript)
 
 
 def route_result(
@@ -253,7 +282,9 @@ def route_result(
             "reason": "The call result requires human escalation.",
             "incident_closed": "false",
         }
-    if structured["incident_acknowledged"] == "yes" and structured["ticket_id"] != "unknown":
+    if structured["incident_acknowledged"] == "yes" and _meaningful_ticket_id(
+        structured["ticket_id"]
+    ):
         return {
             "route": "vendor_acknowledged",
             "reason": "The vendor acknowledged the incident and supplied a ticket identifier.",
