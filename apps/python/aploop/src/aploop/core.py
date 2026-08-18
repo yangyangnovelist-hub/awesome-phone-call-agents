@@ -3,17 +3,62 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 E164 = re.compile(r"^\+[1-9]\d{7,14}$")
-ALLOWED_CONTACT_BASIS = {"existing_customer", "vendor_relationship", "explicit_permission"}
-SUPPORTED_REGIONS = {
-    "US", "SG", "MY", "IN", "AE", "AU", "CA", "GB", "VN", "DE", "JP", "FR", "MX",
-    "BR", "ID", "PH", "KE", "NL", "PL", "BD", "NG", "OM", "TH", "NA", "CM", "MZ",
-    "SA", "FI", "UA", "LK", "BW", "PK", "TR", "HN",
+PHONE_LIKE = re.compile(r"(?<!\w)\+?[1-9]\d{7,14}(?!\w)")
+EMAIL_LIKE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+TOKEN_LIKE = re.compile(
+    r"(?i)(bearer|token|api[_ -]?key|access[_ -]?token|password|client[_ -]?secret)"
+    r"\s*[:=]?\s*\S+"
+)
+ALLOWED_CONTACT_BASIS = {
+    "existing_customer",
+    "vendor_relationship",
+    "explicit_permission",
 }
+SUPPORTED_REGIONS = {
+    "US",
+    "SG",
+    "MY",
+    "IN",
+    "AE",
+    "AU",
+    "CA",
+    "GB",
+    "VN",
+    "DE",
+    "JP",
+    "FR",
+    "MX",
+    "BR",
+    "ID",
+    "PH",
+    "KE",
+    "NL",
+    "PL",
+    "BD",
+    "NG",
+    "OM",
+    "TH",
+    "NA",
+    "CM",
+    "MZ",
+    "SA",
+    "FI",
+    "UA",
+    "LK",
+    "BW",
+    "PK",
+    "TR",
+    "HN",
+}
+TERMINAL_SUCCESS = {"completed", "succeeded"}
+MIN_CONFIDENCE = 0.8
+RECIPIENT_SPEAKERS = {"recipient", "user", "callee"}
 
 
 @dataclass(frozen=True)
@@ -42,6 +87,7 @@ RESULT_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
     "required": [
         "contact_outcome",
+        "continued_after_ai_disclosure",
         "invoice_reference_confirmed",
         "invoice_received",
         "payment_status",
@@ -55,8 +101,16 @@ RESULT_SCHEMA: dict[str, Any] = {
     "properties": {
         "contact_outcome": {
             "type": "string",
-            "enum": ["answered", "wrong_desk", "refused", "voicemail", "unreachable", "unknown"],
+            "enum": [
+                "answered",
+                "wrong_desk",
+                "refused",
+                "voicemail",
+                "unreachable",
+                "unknown",
+            ],
         },
+        "continued_after_ai_disclosure": {"type": "boolean"},
         "invoice_reference_confirmed": {"type": "boolean"},
         "invoice_received": {"type": "boolean"},
         "payment_status": {
@@ -71,14 +125,27 @@ RESULT_SCHEMA: dict[str, Any] = {
                 "unknown",
             ],
         },
-        "missing_documents": {"type": "string"},
-        "dispute_reason": {"type": "string"},
-        "expected_payment_date": {"type": "string"},
-        "next_contact": {"type": "string"},
-        "next_action": {"type": "string"},
+        "missing_documents": {"type": "string", "maxLength": 500},
+        "dispute_reason": {"type": "string", "maxLength": 500},
+        "expected_payment_date": {"type": "string", "maxLength": 160},
+        "next_contact": {"type": "string", "maxLength": 300},
+        "next_action": {"type": "string", "maxLength": 300},
         "needs_human_followup": {"type": "boolean"},
     },
 }
+
+
+def _reference_tokens(value: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", value.casefold())
+
+
+def _contains_token_sequence(haystack: list[str], needle: list[str]) -> bool:
+    if not needle or len(needle) > len(haystack):
+        return False
+    return any(
+        haystack[index : index + len(needle)] == needle
+        for index in range(len(haystack) - len(needle) + 1)
+    )
 
 
 def parse_request(payload: dict[str, Any]) -> InvoiceRequest:
@@ -92,7 +159,11 @@ def parse_request(payload: dict[str, Any]) -> InvoiceRequest:
         "locale",
         "contact_basis",
     )
-    missing = [key for key in required if not isinstance(payload.get(key), str) or not payload[key].strip()]
+    missing = [
+        key
+        for key in required
+        if not isinstance(payload.get(key), str) or not payload[key].strip()
+    ]
     if missing:
         raise ValueError(f"missing required string fields: {', '.join(missing)}")
     request = InvoiceRequest(
@@ -118,7 +189,11 @@ def validate_request(request: InvoiceRequest) -> None:
     if request.region not in SUPPORTED_REGIONS:
         raise ValueError(f"unsupported CALL-E recipient region: {request.region}")
     if request.contact_basis not in ALLOWED_CONTACT_BASIS:
-        raise ValueError("live workflow is limited to an existing B2B relationship or explicit permission")
+        raise ValueError(
+            "live workflow is limited to an existing B2B relationship or explicit permission"
+        )
+    if sum(len(token) for token in _reference_tokens(request.invoice_reference)) < 4:
+        raise ValueError("invoice_reference is too short to corroborate safely")
     if len(request.invoice_context) > 1200:
         raise ValueError("invoice_context is too long; keep the spoken briefing bounded")
 
@@ -127,28 +202,26 @@ def mask_phone(phone: str) -> str:
     return f"{phone[:3]}{'*' * max(4, len(phone) - 6)}{phone[-3:]}"
 
 
-def idempotency_key(request: InvoiceRequest) -> str:
-    stable = "|".join((request.request_id, request.invoice_reference, request.support_phone))
-    return f"aploop-{hashlib.sha256(stable.encode()).hexdigest()[:32]}"
-
-
 def build_task(request: InvoiceRequest) -> str:
     context = request.invoice_context or "No additional invoice context is needed."
     return (
-        f"You are an AI assistant calling the accounts-payable/business contact at "
+        "You are an AI assistant calling the accounts-payable or business contact at "
         f"{request.customer_company} on behalf of {request.caller_business_name} about an existing "
         f"B2B invoice, reference {request.invoice_reference}. Disclose that you are an AI assistant "
-        "at the start. This is a status and blocker follow-up, not a debt-negotiation call. Confirm "
-        "whether the invoice reference is recognized and received, current AP status, whether a PO, "
-        "receipt, tax document, approval, or other ordinary business document is missing, whether "
-        "there is a dispute and its high-level business reason, any expected payment date the "
-        "recipient is willing to state, and the correct AP follow-up contact or next action. Do not "
-        "ask for or accept card numbers, bank credentials, passwords, security codes, tax IDs, or "
-        "other secrets. Do not provide changed payment instructions, threaten consequences, claim "
-        "legal rights, negotiate a discount or settlement, or make a binding commercial commitment. "
-        "If a payment-instruction change or sensitive verification is raised, direct the recipient "
-        "to the parties' established secure channel and mark human follow-up. If the invoice cannot "
-        f"be verified, say so rather than guessing. Known context: {context}"
+        "at the start and ask whether the recipient is willing to continue. If they do not clearly "
+        "agree, do not disclose invoice details and end the call. This is a status and blocker "
+        "follow-up, not a debt-negotiation call. Confirm whether the invoice reference is recognized "
+        "and received, current AP status, whether a PO, receipt, tax document, approval, or other "
+        "ordinary business document is missing, whether there is a dispute and its high-level "
+        "business reason, any expected payment date the recipient is willing to state, and the "
+        "correct AP follow-up contact or next action. Read back the invoice reference and captured "
+        "facts once so they can be corrected. Do not ask for or accept card numbers, bank "
+        "credentials, passwords, security codes, tax IDs, or other secrets. Do not provide changed "
+        "payment instructions, threaten consequences, claim legal rights, negotiate a discount or "
+        "settlement, or make a binding commercial commitment. If a payment-instruction change or "
+        "sensitive verification is raised, direct the recipient to the parties' established secure "
+        "channel and mark human follow-up. If the invoice cannot be verified, say so rather than "
+        f"guessing. Known context: {context}"
     )
 
 
@@ -156,7 +229,11 @@ def call_arguments(request: InvoiceRequest) -> dict[str, Any]:
     return {
         "task": build_task(request),
         "recipients": [
-            {"phones": [request.support_phone], "region": request.region, "locale": request.locale}
+            {
+                "phones": [request.support_phone],
+                "region": request.region,
+                "locale": request.locale,
+            }
         ],
         "result_schema": RESULT_SCHEMA,
         "metadata": {
@@ -167,7 +244,25 @@ def call_arguments(request: InvoiceRequest) -> dict[str, Any]:
     }
 
 
+def idempotency_key(request: InvoiceRequest) -> str:
+    canonical = json.dumps(
+        call_arguments(request),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+    return f"aploop-{hashlib.sha256(canonical).hexdigest()}"
+
+
 def preview(request: InvoiceRequest) -> dict[str, Any]:
+    arguments = call_arguments(request)
+    arguments["recipients"] = [
+        {
+            "phones": [mask_phone(request.support_phone)],
+            "region": request.region,
+            "locale": request.locale,
+        }
+    ]
     return {
         "mode": "preview",
         "creates_phone_call": False,
@@ -175,36 +270,165 @@ def preview(request: InvoiceRequest) -> dict[str, Any]:
         "destination": mask_phone(request.support_phone),
         "contact_basis": request.contact_basis,
         "idempotency_key": idempotency_key(request),
-        "task": build_task(request),
-        "result_schema": RESULT_SCHEMA,
+        "call_arguments": arguments,
     }
 
 
-def _has_evidence(result: dict[str, Any]) -> bool:
-    evidence = result.get("evidence")
-    return isinstance(evidence, list) and any(isinstance(item, str) and item.strip() for item in evidence)
+def confidence_score(value: Any) -> float:
+    if isinstance(value, bool):
+        return 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, dict):
+        score = value.get("score")
+        if isinstance(score, (int, float)) and not isinstance(score, bool):
+            return float(score)
+    return 0.0
 
 
-def route_result(result: dict[str, Any]) -> dict[str, str]:
-    structured = result.get("structured_result")
-    if result.get("status") != "completed" or result.get("task_completed") is not True:
-        return {"route": "human_review", "reason": "call did not complete successfully"}
-    if not isinstance(structured, dict):
-        return {"route": "human_review", "reason": "missing structured result"}
-    outcome = structured.get("contact_outcome")
+def valid_result(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    required = RESULT_SCHEMA["required"]
+    if set(value) != set(required):
+        return False
+    for field in required:
+        rule = RESULT_SCHEMA["properties"][field]
+        field_value = value[field]
+        if rule["type"] == "boolean":
+            if not isinstance(field_value, bool):
+                return False
+            continue
+        if not isinstance(field_value, str):
+            return False
+        if len(field_value) > rule.get("maxLength", 10_000):
+            return False
+        if "enum" in rule and field_value not in rule["enum"]:
+            return False
+    return True
+
+
+def _expected_metadata(request: InvoiceRequest) -> dict[str, str]:
+    return {
+        "app": "aploop",
+        "request_id": request.request_id,
+        "invoice_reference": request.invoice_reference,
+    }
+
+
+def _recipient_transcript(provider_result: dict[str, Any], destination: str) -> str:
+    recipients = provider_result.get("recipients")
+    if not isinstance(recipients, list) or len(recipients) != 1:
+        return ""
+    recipient = recipients[0]
+    if not isinstance(recipient, dict) or recipient.get("phone") != destination:
+        return ""
+    attempts = recipient.get("attempts")
+    if not isinstance(attempts, list) or not attempts:
+        return ""
+    turns: list[str] = []
+    for attempt in attempts:
+        if not isinstance(attempt, dict):
+            continue
+        transcript = attempt.get("transcript_turns")
+        if not isinstance(transcript, list):
+            continue
+        for turn in transcript:
+            if (
+                isinstance(turn, dict)
+                and str(turn.get("speaker", "")).lower() in RECIPIENT_SPEAKERS
+                and isinstance(turn.get("text"), str)
+            ):
+                turns.append(turn["text"])
+    return "\n".join(turns)
+
+
+def _bound_to_approved_call(
+    request: InvoiceRequest,
+    provider_result: dict[str, Any],
+    expected_call_id: str | None,
+) -> bool:
+    if provider_result.get("metadata") != _expected_metadata(request):
+        return False
+    if expected_call_id is not None and provider_result.get("id") != expected_call_id:
+        return False
+    evidence = provider_result.get("evidence")
+    if not isinstance(evidence, list) or not any(
+        isinstance(item, str) and item.strip() for item in evidence
+    ):
+        return False
+    return bool(_recipient_transcript(provider_result, request.support_phone))
+
+
+def _reference_corroborated(request: InvoiceRequest, provider_result: dict[str, Any]) -> bool:
+    transcript = _recipient_transcript(provider_result, request.support_phone)
+    return _contains_token_sequence(
+        _reference_tokens(transcript),
+        _reference_tokens(request.invoice_reference),
+    )
+
+
+def route_result(
+    request: InvoiceRequest,
+    provider_result: dict[str, Any],
+    *,
+    expected_call_id: str | None = None,
+) -> dict[str, str]:
+    structured = provider_result.get("structured_result")
+    if (
+        provider_result.get("status") not in TERMINAL_SUCCESS
+        or provider_result.get("task_completed") is not True
+        or confidence_score(provider_result.get("completion_confidence")) < MIN_CONFIDENCE
+    ):
+        return {"route": "human_review", "reason": "CALL-E did not return reliable success"}
+    if not valid_result(structured):
+        return {"route": "human_review", "reason": "structured result failed strict validation"}
+    assert isinstance(structured, dict)
+    if not _bound_to_approved_call(request, provider_result, expected_call_id):
+        return {
+            "route": "human_review",
+            "reason": "result was not bound to the approved call, destination, and evidence",
+        }
+    outcome = structured["contact_outcome"]
     if outcome == "wrong_desk":
         return {"route": "reroute", "reason": "recipient identified a different AP contact"}
     if outcome != "answered":
-        return {"route": "follow_up", "reason": f"contact outcome was {outcome or 'unknown'}"}
-    if not _has_evidence(result):
-        return {"route": "human_review", "reason": "no provider evidence supports the result"}
-    if structured.get("invoice_reference_confirmed") is not True:
+        return {"route": "follow_up", "reason": f"contact outcome was {outcome}"}
+    if structured["continued_after_ai_disclosure"] is not True:
+        return {"route": "human_review", "reason": "recipient did not consent after AI disclosure"}
+    if structured["invoice_reference_confirmed"] is not True:
         return {"route": "human_review", "reason": "invoice reference was not confirmed"}
-    if structured.get("payment_status") == "disputed" or structured.get("needs_human_followup") is True:
-        return {"route": "human_action", "reason": "dispute or sensitive blocker requires a person"}
-    if structured.get("payment_status") in {"approved", "scheduled", "paid"}:
-        return {"route": "record_payment_status", "reason": "evidence-backed AP status is actionable"}
-    return {"route": "follow_up", "reason": "invoice remains in a non-terminal AP workflow state"}
+    if not _reference_corroborated(request, provider_result):
+        return {
+            "route": "human_review",
+            "reason": "confirmed invoice reference was not corroborated in recipient transcript",
+        }
+    if structured["payment_status"] == "disputed" or structured["needs_human_followup"] is True:
+        return {
+            "route": "human_action",
+            "reason": "dispute or sensitive blocker requires a person",
+        }
+    if structured["payment_status"] in {"approved", "scheduled", "paid"}:
+        return {
+            "route": "record_payment_status",
+            "reason": "bound, corroborated AP status is actionable",
+        }
+    return {
+        "route": "follow_up",
+        "reason": "invoice remains in a non-terminal AP workflow state",
+    }
+
+
+def redact(value: Any) -> Any:
+    if isinstance(value, str):
+        value = PHONE_LIKE.sub("[phone-redacted]", value)
+        value = EMAIL_LIKE.sub("[email-redacted]", value)
+        return TOKEN_LIKE.sub("[credential-redacted]", value)
+    if isinstance(value, list):
+        return [redact(item) for item in value]
+    if isinstance(value, dict):
+        return {key: redact(item) for key, item in value.items()}
+    return value
 
 
 def execute(
@@ -213,11 +437,18 @@ def execute(
     *,
     timeout_seconds: int = 600,
 ) -> dict[str, Any]:
-    created = calls.create(**call_arguments(request), idempotency_key=idempotency_key(request))
+    created = calls.create(
+        **call_arguments(request),
+        idempotency_key=idempotency_key(request),
+    )
     call_id = created.get("id")
     if not isinstance(call_id, str) or not call_id:
         raise RuntimeError("CALL-E create response did not contain a call id")
-    completed = calls.wait_for_result(call_id, timeout_seconds=timeout_seconds, interval_seconds=2)
+    completed = calls.wait_for_result(
+        call_id,
+        timeout_seconds=timeout_seconds,
+        interval_seconds=2,
+    )
     return {
         "mode": "execute",
         "creates_phone_call": True,
@@ -227,7 +458,7 @@ def execute(
         "status": completed.get("status"),
         "task_completed": completed.get("task_completed"),
         "completion_confidence": completed.get("completion_confidence"),
-        "structured_result": completed.get("structured_result"),
-        "evidence": completed.get("evidence"),
-        "decision": route_result(completed),
+        "structured_result": redact(completed.get("structured_result")),
+        "evidence_present": bool(completed.get("evidence")),
+        "decision": route_result(request, completed, expected_call_id=call_id),
     }
