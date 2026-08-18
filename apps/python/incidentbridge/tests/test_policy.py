@@ -169,11 +169,42 @@ def test_acknowledged_route_requires_request_binding_and_recipient_corroboration
         )
 
 
+def test_ticket_corroboration_rejects_blank_unknown_and_prefix_matches():
+    request = parse_request(RAW)
+    complete = acknowledged_result()
+
+    blank = bound_provider_result({**complete, "ticket_id": "   "})
+    assert route_result(request, blank, expected_call_id="call_001")["route"] == "needs_human"
+
+    uppercase_unknown = bound_provider_result({**complete, "ticket_id": "UNKNOWN"})
+    assert (
+        route_result(request, uppercase_unknown, expected_call_id="call_001")["route"]
+        == "needs_human"
+    )
+
+    prefix = bound_provider_result({**complete, "ticket_id": "SUP-48"})
+    prefix["recipients"][0]["attempts"][0]["transcript_turns"][0]["text"] = "Ticket SUP-4821."
+    assert route_result(request, prefix, expected_call_id="call_001")["route"] == "needs_human"
+
+
+def test_ticket_corroboration_tolerates_punctuation_without_accepting_substrings():
+    request = parse_request(RAW)
+    provider_result = bound_provider_result()
+    provider_result["recipients"][0]["attempts"][0]["transcript_turns"][0]["text"] = (
+        "Your ticket is SUP 4821."
+    )
+    decision = route_result(request, provider_result, expected_call_id="call_001")
+    assert decision["route"] == "vendor_acknowledged"
+    assert decision["incident_closed"] == "false"
+
+
 def test_schema_validation_and_simulation():
     request = parse_request(RAW)
     assert valid_result(acknowledged_result()) is True
     invalid = {**acknowledged_result(), "eta_minutes": True}
     assert valid_result(invalid) is False
+    empty_ticket = {**acknowledged_result(), "ticket_id": " "}
+    assert valid_result(empty_ticket) is False
     assert simulated_result(request, "wrong-desk")["decision"]["route"] == "needs_human"
     assert simulated_result(request, "eta-unknown")["decision"]["route"] == "vendor_acknowledged"
 
@@ -181,8 +212,19 @@ def test_schema_validation_and_simulation():
 def test_idempotency_and_recursive_redaction():
     request = parse_request(RAW)
     assert idempotency_key(request) == idempotency_key(request)
-    payload = {"nested": ["Call +15555550100 or a@b.com", {"x": "Bearer abc123"}]}
+    payload = {
+        "nested": [
+            "Call +15555550100 or a@b.com",
+            {
+                "token": "Bearer abc123",
+                "password": "password=sekret-value",
+                "client_secret": "client_secret:qwerty",
+            },
+        ]
+    }
     rendered = str(redact(payload))
     assert "5555550100" not in rendered
     assert "a@b.com" not in rendered
     assert "abc123" not in rendered
+    assert "sekret-value" not in rendered
+    assert "qwerty" not in rendered
