@@ -1,0 +1,11 @@
+{
+  "request_id": "permit-demo-001",
+  "caller_business_name": "Example Permit Ops",
+  "jurisdiction": "Example City Building Department",
+  "permit_reference": "PERMIT-EXAMPLE-001",
+  "support_phone": "+15555550101",
+  "region": "US",
+  "locale": "en-US",
+  "contact_basis": "authorized_project",
+  "project_summary": "Commercial renovation. Ask only for factual status, missing checklist items, and the next review milestone."
+}
