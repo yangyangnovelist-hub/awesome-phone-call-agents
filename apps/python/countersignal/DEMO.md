@@ -1,76 +1,72 @@
-# CounterSignal judge demo — target 2:25
+# CounterSignal judge demo — target 2:20
 
-The demo should prove the product boundary, not narrate the README. Everything below can be shown with the deterministic judge console and no credentials. A real-call clip can replace the marked section later without changing the story.
+The demo should prove one thing: CounterSignal is not an AI interviewer with a dashboard. It is a decision-audit system that makes contradictory customer evidence load-bearing. Everything below can be shown with the deterministic Decision Audit Console and no credentials. A real-call clip can replace the marked section later without changing the story.
 
-## 0:00–0:18 — The problem
+## 0:00–0:16 — The category problem
 
-**Screen:** CounterSignal judge console, frozen hypothesis visible.
-
-**Narration:**
-
-> Customer discovery is supposed to reduce uncertainty, but it is easy to turn conversations into confirmation theater. Questions drift, founders pitch, and contradictory answers disappear into notes. CounterSignal makes the phone interview a falsifiable experiment instead.
-
-## 0:18–0:42 — Freeze what would change your mind
-
-**Screen:** Highlight `smallbet-permit-ops-v1`, the five fixed questions, protocol hash, and the **8 / 5 / 3** decision rule.
+**Screen:** Decision Audit Console hero: `Customer research that can prove you wrong.`
 
 **Narration:**
 
-> Before any call, I freeze the segment, hypothesis, exact questions, and decision rule. This real dogfood protocol requires eight valid answered interviews, five supporting interviews for provisional support, and three grounded contradictions to weaken the hypothesis. That generates a protocol hash. Changing a question creates a new experiment identity, so I cannot quietly rewrite the study after hearing the answers.
+> AI can make customer interviews faster, but faster confirmation bias is still confirmation bias. CounterSignal freezes what would change your mind before the first interview, then makes every conclusion replayable back to evidence.
 
-**Proof to show:** point to `smallbet-experiment.json` and the full protocol hash `a7229d00…b47a56` displayed in the console.
+## 0:16–0:38 — Freeze the decision contract
 
-## 0:42–1:02 — CALL-E is the interview instrument, not the decision maker
-
-**Screen:** no-call preview / exact task contract.
+**Screen:** pre-registered hypothesis, protocol hash, and the **8 / 5 / 3** rule.
 
 **Narration:**
 
-> The default is a no-call preview. A live run requires affirmative participation permission, a reviewed recipient, an exact allowlist match, a live-call flag, and the CALL-E key. CALL-E discloses that it is an AI research assistant, asks the frozen questions, may use only a neutral clarification, and is explicitly forbidden from selling, negotiating, offering discounts, or adding a substantive question.
+> Before any call, the segment, hypothesis, five questions, and decision thresholds are frozen into a protocol identity. This protocol requires eight valid answered interviews, five supporting interviews for provisional support, and three grounded contradictions to weaken the hypothesis. Changing the study creates a new identity; the operator cannot rewrite the experiment after seeing the answers.
 
-**Later live-proof replacement:** show one consented CALL-E interview creation/result ID here if an authorized dogfood call is available.
+## 0:38–0:58 — Evidence, not call completion
 
-## 1:02–1:32 — Honest denominator and evidence binding
-
-**Screen:** judge console starts at 8 answered: 5 supporting, 3 neutral, 0 contradictory. Current decision is `hypothesis_supported_under_rule`.
+**Screen:** click an evidence-ledger row to open provenance.
 
 **Narration:**
 
-> This reviewer preset begins exactly at provisional support under the frozen rule. But a completed call is not automatically evidence. CounterSignal binds the result to the exact experiment, protocol hash, accepted CALL-E call ID, and reviewed recipient, and requires the key quote to exist in recipient-side transcript text. Refusal, voicemail, unreachable, low-confidence, unbound, and ungrounded outcomes never become positive evidence.
+> A completed call is not evidence by itself. A usable result must bind to the exact CALL-E call, reviewed recipient, experiment, protocol hash, confidence gate, and a quote grounded in recipient-side transcript text. Refusal, voicemail, unreachable, low-confidence, mismatched, and ungrounded results stay outside the answered denominator.
 
-**Action:** press `+ Voicemail` once. Point out that nonresponse increases but the answered denominator remains **8**.
+**Later live-proof replacement:** show one permissioned CALL-E call ID and redacted evidence record here.
 
-## 1:32–2:00 — Make contradiction load-bearing
+## 0:58–1:14 — Honest denominator
 
-**Screen:** press `+ Contradiction` three times.
-
-**Narration:**
-
-> Now add evidence against the founder's own idea. The first contradiction removes provisional support; the experiment becomes inconclusive rather than pretending the negative answer does not exist. At the third grounded contradiction, the frozen weakening threshold is reached and CounterSignal returns `hypothesis_weakened`. Five supportive interviews are still in the ledger. CounterSignal simply refuses to let them erase the three contradictions.
-
-**Judge point:** this is the behavior a lead funnel is structurally not designed to produce.
-
-## 2:00–2:16 — Consequential-call reliability
-
-**Screen:** source/test summary or reservation state diagram.
+**Screen:** note `8 answered`; press `Inject voicemail` once.
 
 **Narration:**
 
-> The live path uses the published CALL-E Python SDK. The exact intent is durably reserved in SQLite before dispatch. If the network outcome is ambiguous after CALL-E may already have accepted the call, the record becomes `outcome_unknown` and blind redial is blocked. Protocol drift, result shape, transcript grounding, denominator integrity, and duplicate-intent behavior are regression-tested.
+> The study starts at eight answered interviews: five support and three neutral. Add a voicemail and the attempted count rises, but the answered denominator stays eight. Silence cannot inflate the research result.
 
-## 2:16–2:25 — Real-world evidence boundary
+## 1:14–1:48 — Replay exactly when the conclusion changes
 
-**Screen:** `DOGFOOD.md` / `smallbet-experiment.json`.
+**Screen:** press `Replay decision`, then inject contradictions one by one. Keep the Decision Replay and Adversarial Evidence Queue visible.
 
 **Narration:**
 
-> The real dogfood run is pre-registered before the first interview. I report permission rate, answered and nonresponse counts, contradictions, decision sequence, and measured operator time — not invented product-market fit or ROI.
+> Now add evidence against the founder's idea. The first grounded contradiction immediately removes provisional support and moves the study to inconclusive. At three contradictions the frozen weakening threshold is reached. Five supportive interviews remain visible; CounterSignal refuses to average away the evidence that falsified the working hypothesis.
+
+**Judge point:** point at the replay rows showing the exact interview number where the state changed.
+
+## 1:48–2:05 — Show the next discriminating evidence
+
+**Screen:** decision card and Decision Memo.
+
+**Narration:**
+
+> CounterSignal also exposes decision fragility. Before a contradiction it tells you that one negative case is enough to remove support and three would weaken the hypothesis. After the state changes, the memo reports what remains uncertain and what evidence would be decision-relevant next.
+
+## 2:05–2:20 — Reliability boundary
+
+**Screen:** CALL-E evidence contract and Export Audit JSON.
+
+**Narration:**
+
+> The live path uses the published CALL-E Python SDK with explicit participation permission, exact allowlisting, durable intent reservation, content-bound idempotency, and no blind redial after ambiguous provider outcomes. The output is an exportable audit trail, not a product-market-fit claim.
 
 ## Recording rules
 
-- Keep the final public video under 3:00; target 2:20–2:30.
+- Keep the final public video under 3:00; target 2:15–2:25.
 - Do not show real phone numbers, CALL-E keys, full transcripts, or recipient identities.
 - The console uses deterministic simulated evidence and says so on screen; never present it as a live call.
-- The displayed rule must remain the real SmallBet **8 / 5 / 3** rule. Do not revert to the earlier reviewer-only 5 / 3 / 2 toy threshold.
-- If a live clip is available, show the provider call ID and redacted structured result, but keep the claim boundary unchanged.
-- End on the decision changing to `hypothesis_weakened`, not on a code editor.
+- The displayed rule must remain the real SmallBet **8 / 5 / 3** rule.
+- If a live clip is available, show a redacted provider call ID plus the exact evidence-binding fields; do not show raw participant identity.
+- End on the decision replay / `hypothesis_weakened` transition, not on a code editor.
