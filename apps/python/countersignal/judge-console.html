@@ -3,96 +3,394 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CounterSignal — Judge Console</title>
+<title>CounterSignal — Decision Audit Console</title>
+<meta name="description" content="Customer discovery that can change your mind. CounterSignal freezes a research protocol, binds evidence to calls, and replays exactly why a decision changed.">
 <style>
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#141414;background:#f4f3ef}*{box-sizing:border-box}body{margin:0}.shell{max-width:1180px;margin:0 auto;padding:28px}.top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px}.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:#6b6b63}.title{font-size:38px;line-height:1.03;margin:7px 0 8px;letter-spacing:-.04em}.sub{max-width:760px;color:#5d5d57;line-height:1.55}.badge{border:1px solid #c9c6bc;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:750;background:#fff;white-space:nowrap}.grid{display:grid;grid-template-columns:1.3fr .7fr;gap:18px;margin-top:24px}.card{background:#fff;border:1px solid #d9d6cc;border-radius:16px;padding:18px;box-shadow:0 1px 0 rgba(0,0,0,.03)}.card h2{margin:0 0 13px;font-size:15px}.hyp{font-size:23px;line-height:1.25;letter-spacing:-.02em;margin:3px 0 14px}.meta{display:flex;gap:8px;flex-wrap:wrap}.pill{font:650 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;padding:7px 9px;border-radius:999px;background:#efeee9}.questions{margin:14px 0 0;padding-left:22px;color:#40403b}.questions li{margin:7px 0}.rule{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.rule div,.metric{border:1px solid #e4e1d8;border-radius:12px;padding:12px}.rule b,.metric b{display:block;font-size:22px;letter-spacing:-.03em}.rule span,.metric span{font-size:11px;color:#73736b}.decision{margin-top:12px;padding:16px;border-radius:12px;background:#171717;color:white}.decision .value{font-size:21px;font-weight:800;margin-top:4px}.decision .why{font-size:11px;color:#bbb;margin-top:6px;line-height:1.45}.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:18px}.evidence{margin-top:18px}.row{display:grid;grid-template-columns:110px 1fr 120px;gap:12px;align-items:center;border-top:1px solid #ece9e1;padding:12px 2px}.row:first-child{border-top:0}.kind{font-weight:750;font-size:12px}.quote{font-size:13px;color:#44443f}.state{font:700 11px ui-monospace,SFMono-Regular,Menlo,monospace;text-align:right}.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}button{appearance:none;border:1px solid #c9c6bc;background:#fff;border-radius:10px;padding:10px 12px;font-weight:700;cursor:pointer}button:hover{background:#f2f1ec}.danger{border-color:#111;background:#111;color:#fff}.boundary{margin-top:18px;border-left:4px solid #111;padding:8px 0 8px 13px;font-size:13px;line-height:1.5}.code{font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;background:#191919;color:#ededed;border-radius:12px;padding:13px;overflow:auto;white-space:pre-wrap}.callout{margin-top:12px;padding:12px;border-radius:12px;background:#f4f3ef;font-size:12px;line-height:1.5}.footer{margin:18px 0 4px;color:#77766e;font-size:12px}@media(max-width:850px){.grid{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}.top{display:block}.badge{display:inline-block;margin-top:14px}.row{grid-template-columns:90px 1fr}.state{grid-column:2;text-align:left}}
+:root{
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color:#181817;background:#f3f2ee;
+  --ink:#181817;--muted:#6e6c65;--line:#dedbd2;--paper:#fff;--soft:#f7f6f2;
+  --good:#1e6d49;--warn:#9a6517;--bad:#9b2f2b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(180deg,#efeee9 0,#f6f5f1 380px,#f3f2ee 100%)}
+button{font:inherit}
+.shell{max-width:1240px;margin:0 auto;padding:28px}
+.top{display:flex;justify-content:space-between;gap:28px;align-items:flex-start}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:850;color:var(--muted)}
+h1{font-size:46px;line-height:1.01;letter-spacing:-.05em;margin:8px 0 10px;max-width:800px}
+.sub{font-size:16px;line-height:1.58;color:#55534e;max-width:790px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.badge{border:1px solid #cbc8be;border-radius:999px;padding:8px 11px;background:#fff;font-size:11px;font-weight:800;white-space:nowrap}
+.badge.dark{background:#1b1b1a;color:#fff;border-color:#1b1b1a}
+.hero-strip{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;margin-top:24px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 1px 0 rgba(0,0,0,.03)}
+.card h2{font-size:12px;letter-spacing:.09em;text-transform:uppercase;margin:0 0 12px;color:#5e5c56}
+.decision-card{background:#171716;color:white;border-color:#171716;padding:20px}
+.decision-card h2{color:#a9a79f}
+.decision-value{font-size:28px;font-weight:850;letter-spacing:-.035em;margin-top:5px}
+.decision-why{font-size:12px;line-height:1.55;color:#c8c6bf;margin-top:7px}
+.decision-delta{margin-top:14px;display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.delta{border:1px solid #3a3936;border-radius:12px;padding:11px}
+.delta b{display:block;font-size:20px}
+.delta span{font-size:10px;color:#aaa89f}
+.integrity{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.integrity .item{border:1px solid var(--line);border-radius:12px;padding:11px;background:var(--soft)}
+.integrity b{display:block;font-size:17px;letter-spacing:-.02em}
+.integrity span{font-size:10px;color:var(--muted)}
+.section-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:16px;margin-top:16px}
+.hyp{font-size:22px;line-height:1.3;letter-spacing:-.025em;margin:2px 0 12px}
+.meta{display:flex;gap:7px;flex-wrap:wrap}
+.pill{font:650 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;padding:7px 8px;border-radius:999px;background:#efeee9}
+.rule{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:13px}
+.rule>div{border:1px solid var(--line);border-radius:12px;padding:11px}
+.rule b{font-size:21px;display:block}
+.rule span{font-size:10px;color:var(--muted)}
+.boundary{border-left:3px solid #1e1e1d;padding-left:12px;margin-top:13px;font-size:12px;line-height:1.55;color:#4d4b46}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+button{appearance:none;border:1px solid #cbc8be;background:#fff;border-radius:10px;padding:9px 11px;font-weight:800;font-size:11px;cursor:pointer}
+button:hover{background:#f0efe9}
+button.primary{background:#171716;color:#fff;border-color:#171716}
+button.danger{background:#fff5f3;border-color:#dfb9b4;color:#852b27}
+button:focus-visible{outline:3px solid #8bb3ff;outline-offset:2px}
+.progress-wrap{display:grid;gap:10px}
+.progress-row{display:grid;grid-template-columns:120px 1fr 54px;gap:10px;align-items:center;font-size:11px}
+.track{height:8px;border-radius:999px;background:#eceae4;overflow:hidden}
+.fill{height:100%;background:#242422;border-radius:999px}
+.fill.bad{background:#a13a35}
+.fill.warn{background:#a87324}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:9px;margin-top:16px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px}
+.kpi b{display:block;font-size:22px;letter-spacing:-.03em}
+.kpi span{font-size:10px;color:var(--muted)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.replay-list{display:grid;gap:7px}
+.replay-row{display:grid;grid-template-columns:42px 120px 1fr;gap:10px;align-items:center;border:1px solid var(--line);border-radius:11px;padding:9px;background:#fff}
+.step{font:750 10px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.replay-state{font:800 10px ui-monospace,SFMono-Regular,Menlo,monospace}
+.replay-note{font-size:11px;color:#54524d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.challenge{border:1px solid #e1beb9;background:#fff7f5;border-radius:13px;padding:13px}
+.challenge strong{font-size:13px}
+.challenge p{font-size:11px;line-height:1.5;color:#5b4a47;margin:6px 0 0}
+.evidence{margin-top:16px}
+.evidence-head{display:flex;justify-content:space-between;gap:14px;align-items:center;margin-bottom:4px}
+.legend{display:flex;gap:6px;flex-wrap:wrap}
+.legend span{font-size:9px;border-radius:999px;padding:5px 7px;background:#efeee9}
+.row{display:grid;grid-template-columns:90px 110px 1fr 92px 90px;gap:10px;align-items:center;border-top:1px solid #ece9e2;padding:11px 2px;cursor:pointer}
+.row:first-child{border-top:0}
+.row:hover{background:#faf9f6}
+.kind{font-weight:800;font-size:11px}
+.quote{font-size:12px;color:#44423e}
+.state{font:800 10px ui-monospace,SFMono-Regular,Menlo,monospace}
+.source{font-size:10px;color:var(--muted);text-align:right}
+.conf{font:750 10px ui-monospace,SFMono-Regular,Menlo,monospace}
+.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.code{font:10px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;background:#191918;color:#efeee9;border-radius:13px;padding:13px;white-space:pre-wrap;overflow:auto}
+.memo{font-size:12px;line-height:1.58;color:#44423e}
+.memo b{color:#1e1e1c}
+.footer{margin:18px 1px 4px;color:#77746d;font-size:11px}
+.drawer{position:fixed;inset:0;display:none;z-index:20}
+.drawer.open{display:block}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.panel{position:absolute;right:0;top:0;bottom:0;width:min(520px,92vw);background:#fff;padding:24px;overflow:auto;box-shadow:-12px 0 40px rgba(0,0,0,.16)}
+.panel h3{font-size:23px;letter-spacing:-.03em;margin:6px 0 8px}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}
+.detail{border:1px solid var(--line);border-radius:11px;padding:10px}
+.detail span{font-size:9px;color:var(--muted);display:block;margin-bottom:4px}
+.detail b{font-size:11px}
+.quote-box{border-left:4px solid #222;padding:10px 12px;background:#f5f4f0;font-size:13px;line-height:1.55;margin:12px 0}
+.close{float:right}
+@media(max-width:900px){
+  .hero-strip,.section-grid,.two{grid-template-columns:1fr}
+  .integrity{grid-template-columns:repeat(2,1fr)}
+  .kpis{grid-template-columns:repeat(3,1fr)}
+  .top{display:block}.badges{justify-content:flex-start;margin-top:14px}
+  h1{font-size:38px}
+  .row{grid-template-columns:70px 90px 1fr}
+  .source,.conf{grid-column:3;text-align:left}
+}
+@media(max-width:560px){
+  .shell{padding:18px}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .integrity{grid-template-columns:1fr 1fr}
+  .rule{grid-template-columns:1fr}
+  .replay-row{grid-template-columns:38px 1fr}
+  .replay-note{grid-column:2}
+}
 </style>
 </head>
 <body>
-<div class="shell">
-  <div class="top">
-    <div><div class="eyebrow">CounterSignal / Judge Console</div><h1 class="title">Try to kill the hypothesis.</h1><div class="sub">A frozen customer-discovery protocol where negative evidence is a first-class outcome. This deterministic reviewer mode uses the exact pre-registered SmallBet decision rule and never places a phone call.</div></div>
-    <div class="badge">Deterministic reviewer mode · NO CALL</div>
-  </div>
+<main class="shell">
+  <header class="top">
+    <div>
+      <div class="eyebrow">CounterSignal / Decision Audit Console</div>
+      <h1>Customer research that can prove you wrong.</h1>
+      <div class="sub">CounterSignal freezes the research contract before the first interview, binds every usable claim to evidence, and replays the exact moment a conclusion changes. The demo below is deterministic and simulated; the live path uses CALL-E.</div>
+    </div>
+    <div class="badges">
+      <span class="badge dark">SIMULATED REVIEW MODE</span>
+      <span class="badge">NO CALL</span>
+      <span class="badge">PROTOCOL LOCKED</span>
+    </div>
+  </header>
 
-  <div class="grid">
-    <section class="card">
-      <h2>PRE-REGISTERED EXPERIMENT</h2>
+  <section class="hero-strip">
+    <article class="card decision-card">
+      <h2>Current decision</h2>
+      <div class="decision-value" id="decision">hypothesis_supported_under_rule</div>
+      <div class="decision-why" id="why"></div>
+      <div class="decision-delta">
+        <div class="delta"><b id="toWeaken">3</b><span>grounded contradictions still needed to weaken</span></div>
+        <div class="delta"><b id="supportFragility">1</b><span>contradiction needed to remove current support</span></div>
+      </div>
+    </article>
+    <article class="card">
+      <h2>Research integrity</h2>
+      <div class="integrity">
+        <div class="item"><b>LOCKED</b><span>protocol identity</span></div>
+        <div class="item"><b id="boundMetric">8 / 8</b><span>answered evidence bound</span></div>
+        <div class="item"><b>HONEST</b><span>nonresponse excluded</span></div>
+        <div class="item"><b>REPLAYABLE</b><span>decision history</span></div>
+      </div>
+      <div class="boundary"><b>Core difference:</b> CounterSignal does not optimize for a positive research readout. It preserves the strongest evidence against the operator's hypothesis and lets that evidence change the decision.</div>
+    </article>
+  </section>
+
+  <section class="section-grid">
+    <article class="card">
+      <h2>Pre-registered experiment</h2>
       <div class="hyp">Permit-status ambiguity recurs often enough that contractors already spend operator time on a manual workaround.</div>
-      <div class="meta"><span class="pill">smallbet-permit-ops-v1</span><span class="pill">protocol a7229d00…b47a56</span><span class="pill">5 questions locked</span></div>
-      <ol class="questions">
-        <li>Tell me about the last time a permit status was unclear or did not match what your team expected.</li>
-        <li>What did your team do to resolve it?</li>
-        <li>Roughly how often has that kind of follow-up happened in the last month?</li>
-        <li>What happens operationally if nobody follows up?</li>
-        <li>Who or what currently keeps track of those exceptions?</li>
-      </ol>
-      <div class="boundary"><b>Experiment authority:</b> a call can contribute evidence. It cannot change the questions, rewrite a contradiction, or declare product-market fit.</div>
-    </section>
+      <div class="meta">
+        <span class="pill">smallbet-permit-ops-v1</span>
+        <span class="pill">protocol a7229d00…b47a56</span>
+        <span class="pill">5 questions locked</span>
+        <span class="pill">1 neutral clarification max</span>
+      </div>
+      <div class="boundary"><b>Authority boundary:</b> an interview may add evidence. It cannot edit the hypothesis, rewrite the frozen questions, suppress a contradiction, or declare product-market fit.</div>
+    </article>
 
     <aside class="card">
-      <h2>FROZEN DECISION RULE</h2>
-      <div class="rule"><div><b>8</b><span>min answered</span></div><div><b>5</b><span>support needed</span></div><div><b>3</b><span>contradictions weaken</span></div></div>
-      <div class="decision"><div class="eyebrow" style="color:#aaa">CURRENT DECISION</div><div class="value" id="decision">hypothesis_supported_under_rule</div><div class="why" id="why"></div></div>
-      <div class="controls"><button class="danger" onclick="add('disconfirming')">+ Contradiction</button><button onclick="add('nonresponse')">+ Voicemail</button><button onclick="add('supporting')">+ Supporting</button><button onclick="resetDemo()">Reset to 8 answered</button></div>
-      <div class="callout">Demo move: add voicemail first — answered stays 8. Then add three contradictions. CounterSignal must end at <b>hypothesis_weakened</b>, even though five supporting interviews remain in the ledger.</div>
+      <h2>Frozen decision contract</h2>
+      <div class="rule">
+        <div><b>8</b><span>minimum answered</span></div>
+        <div><b>5</b><span>support required</span></div>
+        <div><b>3</b><span>contradictions weaken</span></div>
+      </div>
+      <div class="controls">
+        <button class="primary" onclick="replay()">Replay decision</button>
+        <button class="danger" onclick="add('disconfirming')">Inject contradiction</button>
+        <button onclick="add('nonresponse')">Inject voicemail</button>
+        <button onclick="resetDemo()">Reset</button>
+      </div>
     </aside>
-  </div>
+  </section>
 
-  <div class="metrics">
-    <div class="metric"><b id="answered">8</b><span>answered denominator</span></div><div class="metric"><b id="supporting">5</b><span>supporting</span></div><div class="metric"><b id="disconfirming">0</b><span>disconfirming</span></div><div class="metric"><b id="nonresponse">0</b><span>nonresponse</span></div><div class="metric"><b id="invalid">0</b><span>invalid / ungrounded</span></div>
-  </div>
+  <section class="kpis">
+    <div class="kpi"><b id="attempted">8</b><span>attempted / invited</span></div>
+    <div class="kpi"><b id="answered">8</b><span>answered denominator</span></div>
+    <div class="kpi"><b id="supporting">5</b><span>supporting</span></div>
+    <div class="kpi"><b id="disconfirming">0</b><span>disconfirming</span></div>
+    <div class="kpi"><b id="nonresponse">0</b><span>nonresponse</span></div>
+    <div class="kpi"><b id="invalid">0</b><span>invalid / ungrounded</span></div>
+  </section>
 
-  <section class="card evidence"><h2>EVIDENCE LEDGER</h2><div id="rows"></div></section>
+  <section class="two">
+    <article class="card">
+      <h2>Decision replay</h2>
+      <div class="replay-list" id="replay"></div>
+    </article>
+    <article class="card">
+      <h2>Adversarial evidence queue</h2>
+      <div id="challenge"></div>
+      <div class="controls">
+        <button onclick="add('supporting')">Add support</button>
+        <button class="danger" onclick="add('disconfirming')">Add contradiction</button>
+        <button onclick="exportAudit()">Export audit JSON</button>
+        <button onclick="copyMemo()">Copy decision memo</button>
+      </div>
+      <div class="boundary">This panel intentionally privileges evidence that can falsify the hypothesis. Supporting evidence is retained, but it cannot average away a threshold-crossing contradiction.</div>
+    </article>
+  </section>
 
-  <div class="grid">
-    <section class="card"><h2>CALL-E BOUNDARY</h2><div class="code">metadata.workflow_type = falsifiable_customer_discovery
+  <section class="card evidence">
+    <div class="evidence-head">
+      <div><h2>Evidence ledger</h2></div>
+      <div class="legend"><span>click any row → provenance</span><span>quotes are simulated in this demo</span></div>
+    </div>
+    <div id="rows"></div>
+  </section>
+
+  <section class="two">
+    <article class="card">
+      <h2>CALL-E evidence contract</h2>
+      <div class="code">metadata.workflow_type = falsifiable_customer_discovery
 metadata.experiment_id = smallbet-permit-ops-v1
 metadata.protocol_hash = a7229d00ec935e760d5764572b142a33a062095db0df8c5f3f32c18b88b47a56
 
-result must bind to:
+usable evidence must bind to:
 ✓ exact accepted CALL-E call id
 ✓ exact reviewed recipient
 ✓ exact protocol hash
 ✓ recipient-side transcript quote
+✓ terminal completion + confidence gate
 
 refusal / voicemail / unreachable → nonresponse
 low-confidence / ungrounded / mismatched → invalid
-ambiguous provider outcome → outcome_unknown / NO BLIND REDIAL</div></section>
-    <section class="card"><h2>CLAIM BOUNDARY</h2><p style="line-height:1.6;margin:0;color:#44443f">The decision is a pre-registered operational rule, <b>not</b> a population-level statistical estimate. “Would take a follow-up” is never treated as demand. Silence never enters the answered denominator.</p><div class="callout"><b>Permission provenance:</b> the real dogfood run only dials respondents who affirmatively opt in to the AI interview. A public business number is not treated as permission.</div></section>
-  </div>
-  <div class="footer">Reviewer console only. Preset evidence is simulated and labeled by construction; live calls use the published CALL-E Python SDK behind independent permission, allowlist, reservation and execution gates.</div>
+ambiguous provider outcome → outcome_unknown / NO BLIND REDIAL</div>
+    </article>
+    <article class="card">
+      <h2>Decision memo</h2>
+      <div class="memo" id="memo"></div>
+    </article>
+  </section>
+
+  <div class="footer">Reviewer console only. All preset interview content on this page is simulated and labeled by construction. Live dogfood evidence should preserve permission provenance, real CALL-E identifiers, protocol binding, transcript-grounded quotes, and the same frozen decision rule.</div>
+</main>
+
+<div class="drawer" id="drawer">
+  <div class="scrim" onclick="closeDrawer()"></div>
+  <aside class="panel">
+    <button class="close" onclick="closeDrawer()">Close</button>
+    <div class="eyebrow">Evidence provenance</div>
+    <h3 id="detailTitle">Interview</h3>
+    <div class="detail-grid">
+      <div class="detail"><span>Evidence bucket</span><b id="detailBucket"></b></div>
+      <div class="detail"><span>Confidence</span><b id="detailConf"></b></div>
+      <div class="detail"><span>Protocol</span><b>a7229d00…b47a56</b></div>
+      <div class="detail"><span>Source</span><b id="detailSource"></b></div>
+    </div>
+    <div class="quote-box" id="detailQuote"></div>
+    <div class="code" id="detailCode"></div>
+  </aside>
 </div>
+
 <script>
 const base=[
- {b:'supporting',q:'“We call the city every week until someone clarifies it.”'},
- {b:'supporting',q:'“Two people watch the portal and keep a spreadsheet.”'},
- {b:'supporting',q:'“A coordinator owns the exceptions and follows up manually.”'},
- {b:'supporting',q:'“If it stalls, somebody emails or calls until we know the next step.”'},
- {b:'supporting',q:'“We already have a workaround because the portal alone is not enough.”'},
- {b:'neutral',q:'“It happens, but only on unusual projects.”'},
- {b:'neutral',q:'“There is follow-up, but I cannot say it is recurring enough to matter.”'},
- {b:'neutral',q:'“Another team handles it, so I cannot validate the workload.”'}
+ {b:'supporting',q:'“We call the city every week until someone clarifies it.”',conf:.94,id:'SIM-001',grounded:true},
+ {b:'supporting',q:'“Two people watch the portal and keep a spreadsheet.”',conf:.91,id:'SIM-002',grounded:true},
+ {b:'supporting',q:'“A coordinator owns the exceptions and follows up manually.”',conf:.93,id:'SIM-003',grounded:true},
+ {b:'supporting',q:'“If it stalls, somebody emails or calls until we know the next step.”',conf:.89,id:'SIM-004',grounded:true},
+ {b:'supporting',q:'“We already have a workaround because the portal alone is not enough.”',conf:.92,id:'SIM-005',grounded:true},
+ {b:'neutral',q:'“It happens, but only on unusual projects.”',conf:.90,id:'SIM-006',grounded:true},
+ {b:'neutral',q:'“There is follow-up, but I cannot say it is recurring enough to matter.”',conf:.88,id:'SIM-007',grounded:true},
+ {b:'neutral',q:'“Another team handles it, so I cannot validate the workload.”',conf:.90,id:'SIM-008',grounded:true}
 ];
 let events=[];
+let replayTimer=null;
+
 function sample(bucket){
- if(bucket==='supporting')return {b:bucket,q:'“We have someone check the portal and call when it stalls.”'};
- if(bucket==='disconfirming')return {b:bucket,q:'“That is not really a problem for us; the portal is usually enough.”'};
- return {b:'nonresponse',q:'Voicemail reached — excluded from answered denominator.'};
+ const n=events.length+1;
+ if(bucket==='supporting') return {b:bucket,q:'“We have someone check the portal and call when it stalls.”',conf:.91,id:`SIM-${String(n).padStart(3,'0')}`,grounded:true};
+ if(bucket==='disconfirming') return {b:bucket,q:'“That is not really a problem for us; the portal is usually enough.”',conf:.93,id:`SIM-${String(n).padStart(3,'0')}`,grounded:true};
+ return {b:'nonresponse',q:'Voicemail reached — excluded from answered denominator.',conf:0,id:`SIM-${String(n).padStart(3,'0')}`,grounded:false};
+}
+function counts(list){
+ const c={supporting:0,disconfirming:0,neutral:0,nonresponse:0,invalid:0};
+ list.forEach(e=>c[e.b]++);
+ return c;
+}
+function decisionFor(list){
+ const c=counts(list);
+ const answered=c.supporting+c.disconfirming+c.neutral;
+ if(answered<8) return {d:'collect_more',why:'Minimum answered denominator has not been reached.',c,answered};
+ if(c.disconfirming>=3) return {d:'hypothesis_weakened',why:'Three grounded contradictions reached the pre-registered weakening threshold.',c,answered};
+ if(c.supporting>=5&&c.disconfirming===0) return {d:'hypothesis_supported_under_rule',why:'At least five supporting interviews, zero contradictions, and eight answered interviews.',c,answered};
+ return {d:'inconclusive',why:'The denominator is met, but the frozen support or weakening rule is not.',c,answered};
+}
+function stateLabel(d){
+ return d==='hypothesis_supported_under_rule'?'SUPPORTED':d==='hypothesis_weakened'?'WEAKENED':d==='inconclusive'?'INCONCLUSIVE':'COLLECT MORE';
 }
 function compute(){
- const c={supporting:0,disconfirming:0,neutral:0,nonresponse:0,invalid:0};events.forEach(e=>c[e.b]++);
- const answered=c.supporting+c.disconfirming+c.neutral;let d='collect_more';let why='Minimum answered denominator has not been reached.';
- if(answered>=8){
-   if(c.disconfirming>=3){d='hypothesis_weakened';why='Three grounded contradictions reached the pre-registered weakening threshold.';}
-   else if(c.supporting>=5&&c.disconfirming===0){d='hypothesis_supported_under_rule';why='At least five supporting interviews, zero contradictions, and eight answered interviews.';}
-   else {d='inconclusive';why='The minimum denominator is met, but the frozen support or weakening rule is not.';}
- }
+ const r=decisionFor(events), c=r.c;
  ['supporting','disconfirming','nonresponse','invalid'].forEach(k=>document.getElementById(k).textContent=c[k]);
- document.getElementById('answered').textContent=answered;document.getElementById('decision').textContent=d;document.getElementById('why').textContent=why;
- document.getElementById('rows').innerHTML=events.map((e,i)=>`<div class="row"><div class="kind">Interview ${String(i+1).padStart(2,'0')}</div><div class="quote">${e.q}</div><div class="state">${e.b}</div></div>`).join('')||'<div class="quote">No evidence loaded.</div>';
+ document.getElementById('attempted').textContent=events.length;
+ document.getElementById('answered').textContent=r.answered;
+ document.getElementById('decision').textContent=r.d;
+ document.getElementById('why').textContent=r.why;
+ document.getElementById('toWeaken').textContent=Math.max(0,3-c.disconfirming);
+ document.getElementById('supportFragility').textContent=(r.d==='hypothesis_supported_under_rule')?1:'—';
+ document.getElementById('boundMetric').textContent=`${events.filter(e=>e.grounded).length} / ${r.answered}`;
+ renderRows();
+ renderReplay();
+ renderChallenge();
+ renderMemo();
 }
-function add(b){events.push(sample(b));compute()}function resetDemo(){events=[...base];compute()}resetDemo();
+function renderRows(){
+ const el=document.getElementById('rows');
+ el.innerHTML=events.map((e,i)=>`
+   <div class="row" onclick="openDetail(${i})">
+     <div class="kind">Interview ${String(i+1).padStart(2,'0')}</div>
+     <div class="state ${e.b==='disconfirming'?'bad':e.b==='supporting'?'good':e.b==='nonresponse'?'warn':''}">${e.b}</div>
+     <div class="quote">${e.q}</div>
+     <div class="conf">${e.conf?Math.round(e.conf*100)+'%':'n/a'}</div>
+     <div class="source">${e.id} · simulated</div>
+   </div>`).join('')||'<div class="quote">No evidence loaded.</div>';
+}
+function renderReplay(){
+ const el=document.getElementById('replay');
+ const steps=[];
+ let last='';
+ events.forEach((e,i)=>{
+   const r=decisionFor(events.slice(0,i+1));
+   const changed=r.d!==last;
+   if(changed||i===events.length-1){
+     steps.push({i:i+1,d:r.d,n:`${r.answered} answered · ${r.c.supporting} support · ${r.c.disconfirming} contradictions`});
+     last=r.d;
+   }
+ });
+ el.innerHTML=steps.map(s=>`<div class="replay-row"><div class="step">#${String(s.i).padStart(2,'0')}</div><div class="replay-state">${stateLabel(s.d)}</div><div class="replay-note">${s.n}</div></div>`).join('');
+}
+function renderChallenge(){
+ const c=counts(events);
+ const contradictions=events.filter(e=>e.b==='disconfirming');
+ const el=document.getElementById('challenge');
+ if(contradictions.length){
+   const e=contradictions[contradictions.length-1];
+   el.innerHTML=`<div class="challenge"><strong>Strongest active challenge: ${contradictions.length}/3</strong><p>${e.q} This evidence is preserved separately from supporting evidence and counts directly toward the weakening threshold.</p></div>`;
+ } else {
+   el.innerHTML=`<div class="challenge"><strong>No grounded contradiction recorded yet.</strong><p>The current support state is fragile by design: the first grounded contradiction immediately removes “supported under rule” and moves the study to inconclusive.</p></div>`;
+ }
+}
+function renderMemo(){
+ const r=decisionFor(events), c=r.c;
+ let next='';
+ if(r.d==='hypothesis_supported_under_rule') next='The next informative evidence is a credible contradiction; one is enough to remove support and three weaken the hypothesis.';
+ else if(r.d==='inconclusive') next=`The study remains unresolved. ${Math.max(0,3-c.disconfirming)} more grounded contradiction(s) would weaken the hypothesis.`;
+ else if(r.d==='hypothesis_weakened') next='The pre-registered weakening threshold is met. Do not average the contradictions away with additional supportive interviews; revise or retire the hypothesis before a new protocol.';
+ else next=`Collect ${Math.max(0,8-r.answered)} more answered interview(s) before applying the decision rule.`;
+ document.getElementById('memo').innerHTML=`<b>${stateLabel(r.d)}</b><br>${r.answered} answered interview(s): ${c.supporting} supporting, ${c.disconfirming} disconfirming, ${c.neutral} neutral. ${c.nonresponse} nonresponse and ${c.invalid} invalid result(s) are excluded from the answered denominator.<br><br><b>Next discriminating evidence:</b> ${next}`;
+}
+function add(bucket){events.push(sample(bucket));compute()}
+function resetDemo(){if(replayTimer)clearInterval(replayTimer);events=[...base];compute()}
+function replay(){
+ if(replayTimer)clearInterval(replayTimer);
+ const target=[...events];events=[];compute();let i=0;
+ replayTimer=setInterval(()=>{if(i>=target.length){clearInterval(replayTimer);replayTimer=null;return}events.push(target[i++]);compute()},420);
+}
+function openDetail(i){
+ const e=events[i];if(!e)return;
+ document.getElementById('detailTitle').textContent=`Interview ${String(i+1).padStart(2,'0')} · ${e.id}`;
+ document.getElementById('detailBucket').textContent=e.b;
+ document.getElementById('detailConf').textContent=e.conf?Math.round(e.conf*100)+'%':'not applicable';
+ document.getElementById('detailSource').textContent='SIMULATED REVIEW FIXTURE';
+ document.getElementById('detailQuote').textContent=e.q;
+ document.getElementById('detailCode').textContent=`source = simulated_fixture\nprotocol_hash = a7229d00…b47a56\ngrounded = ${e.grounded}\ncall_id = not_applicable_in_simulation\n\nLIVE REQUIREMENT:\nreal CALL-E call id + exact recipient binding + transcript-grounded quote + confidence gate`;
+ document.getElementById('drawer').classList.add('open');
+}
+function closeDrawer(){document.getElementById('drawer').classList.remove('open')}
+function auditObject(){
+ const r=decisionFor(events);
+ return {mode:'simulated_review',experiment_id:'smallbet-permit-ops-v1',protocol_hash:'a7229d00ec935e760d5764572b142a33a062095db0df8c5f3f32c18b88b47a56',decision:r.d,answered_denominator:r.answered,counts:r.c,evidence:events.map((e,i)=>({sequence:i+1,id:e.id,bucket:e.b,confidence:e.conf,grounded:e.grounded,quote:e.q,source:'simulated_fixture'}))};
+}
+function exportAudit(){
+ const blob=new Blob([JSON.stringify(auditObject(),null,2)],{type:'application/json'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='countersignal-audit-simulated.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
+}
+async function copyMemo(){
+ const text=document.getElementById('memo').innerText;
+ try{await navigator.clipboard.writeText(text)}catch(_){window.prompt('Copy decision memo:',text)}
+}
+resetDemo();
 </script>
 </body>
 </html>
