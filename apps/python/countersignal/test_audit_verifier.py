@@ -13,8 +13,11 @@ def test_audit_verifier_is_local_and_protocol_pinned():
     assert "does not authenticate the author" in html
     assert "packet.schema==='countersignal.audit.v1'" in script
     assert "permission_verified===true" in script
+    assert "other_non_call" in script
     assert "PERMISSION_CHANNELS.has(e.permission_channel)" in script
     assert "permission_consented_at" in script
     assert "recipient_binding_verified===true" in script
     assert "recipient_ref.startsWith('call-bound:')" in script
-    assert "ANSWERED.has(e.bucket)" in script
+    assert "grounding_verified_before_public_redaction===true" in script
+    assert "public_quote_withheld===true" in script
+    assert "e.quote===''" in script
