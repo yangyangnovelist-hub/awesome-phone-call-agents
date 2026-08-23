@@ -28,7 +28,7 @@ def test_proof_runner_defaults_to_no_call_and_masks_phone(tmp_path, capsys):
     assert "prove_live.py --execute" in output
 
 
-def test_safe_live_summary_contains_no_raw_identity_or_transcript():
+def test_safe_live_summary_contains_no_raw_identity_or_conversation_content():
     exp = c.parse_experiment(EXPERIMENT)
     record = {
         "call_id": "call_safe",
@@ -51,8 +51,10 @@ def test_safe_live_summary_contains_no_raw_identity_or_transcript():
     )
     encoded = json.dumps(summary)
     assert RECIPIENT["phone"] not in encoded
-    assert "transcript" not in encoded.lower()
+    assert "We call the city every week" not in encoded
+    assert "recipients" not in encoded
     assert summary["private_provider_result_persisted"] is False
+    assert "no phone number or full transcript" in summary["privacy_boundary"]
 
 
 def test_private_result_writer_refuses_overwrite(tmp_path):
