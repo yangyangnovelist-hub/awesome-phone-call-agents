@@ -53,6 +53,7 @@ def test_public_live_packet_carries_only_redacted_permission_proof():
     assert evidence["public_quote_withheld"] is True
     assert evidence["quote"] == ""
     assert packet["live_proof_policy"]["minimum_live_evidence_records"] == 1
+    assert packet["live_proof_policy"]["live_evidence_only"] is True
     assert packet["live_proof_policy"]["interview_permission_is_publication_permission"] is False
     assert packet["live_proof_policy"]["live_quote_text_exported"] is False
     assert packet["live_proof_policy"]["raw_permission_receipt_exported"] is False
@@ -71,6 +72,16 @@ def test_live_packet_rejects_zero_live_records():
         assert "at least one CALL-E live evidence record" in str(exc)
     else:
         raise AssertionError("zero-record live proof must fail closed")
+
+
+def test_live_packet_rejects_mixed_non_live_evidence():
+    synthetic = live_record(source="simulated_fixture", call_id="SIM-001")
+    try:
+        proof_packet.live_audit_packet(experiment(), [live_record(), synthetic])
+    except ValueError as exc:
+        assert "cannot mix non-live evidence" in str(exc)
+    else:
+        raise AssertionError("public live proof must not mix simulated evidence")
 
 
 def test_live_packet_rejects_missing_permission_proof():
