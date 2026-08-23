@@ -12,3 +12,6 @@ def test_audit_verifier_is_local_and_protocol_pinned():
     assert "sendBeacon" not in script
     assert "does not authenticate the author" in html
     assert "packet.schema==='countersignal.audit.v1'" in script
+    assert "recipient_binding_verified===true" in script
+    assert "recipient_ref.startsWith('call-bound:')" in script
+    assert "ANSWERED.has(e.bucket)" in script
