@@ -8,6 +8,7 @@ from pathlib import Path
 import audit
 import benchmark
 import countersignal as core
+import policy_stress
 import seal
 
 ROOT = Path(__file__).resolve().parent
@@ -53,6 +54,7 @@ def verify() -> dict[str, object]:
     counterfactual = {
         row["next_bucket"]: row for row in audit.counterfactual_next_evidence(experiment, records)
     }
+    stress = policy_stress.run_stress(experiment, trials=10_000, seed=20260823)
     packet = audit.audit_packet(experiment, records, mode="verification_fixture")
     sealed = seal.seal_packet(packet)
     console = (ROOT / "judge-console.html").read_text(encoding="utf-8")
@@ -79,6 +81,13 @@ def verify() -> dict[str, object]:
         "voicemail_does_not_change_answered_denominator": (
             counterfactual["nonresponse"]["answered_before"]
             == counterfactual["nonresponse"]["answered_after"]
+        ),
+        "seeded_policy_stress_10000_is_clean": (
+            stress["trials"] == 10_000
+            and stress["seed"] == 20260823
+            and stress["invariants_ok"] is True
+            and all(value == 0 for value in stress["failures"].values())
+            and stress["observed_states"]["naive_positive_but_countersignal_nonpositive"] > 0
         ),
         "sealed_packet_verifies": seal.verify_packet(sealed),
         "sealed_packet_states_limits": (
@@ -120,6 +129,7 @@ def verify() -> dict[str, object]:
         "checks": checks,
         "benchmark_case": divergence,
         "counterfactual_disconfirming": counterfactual["disconfirming"],
+        "policy_stress": stress,
     }
 
 
