@@ -1,0 +1,66 @@
+import json
+
+import countersignal as c
+import prove_live
+
+
+EXPERIMENT = {
+    "experiment_id": "proof-test",
+    "segment": "small contractors",
+    "problem": "manual permit follow-up",
+    "hypothesis": "the problem recurs enough to require a workaround",
+    "questions": ["What happened?", "What did you do?", "How often does it recur?"],
+    "decision_rule": {"min_answered": 3, "support_if_at_least": 2, "weaken_if_at_least": 2},
+}
+RECIPIENT = {"phone": "+14155550123", "region": "US", "locale": "en-US"}
+
+
+def test_proof_runner_defaults_to_no_call_and_masks_phone(tmp_path, capsys):
+    exp = tmp_path / "experiment.json"
+    rec = tmp_path / "recipient.json"
+    exp.write_text(json.dumps(EXPERIMENT), encoding="utf-8")
+    rec.write_text(json.dumps(RECIPIENT), encoding="utf-8")
+
+    assert prove_live.main(["--experiment", str(exp), "--recipient", str(rec)]) == 0
+    output = capsys.readouterr().out
+    assert '"creates_phone_call": false' in output
+    assert RECIPIENT["phone"] not in output
+    assert "prove_live.py --execute" in output
+
+
+def test_safe_live_summary_contains_no_raw_identity_or_transcript():
+    exp = c.parse_experiment(EXPERIMENT)
+    record = {
+        "call_id": "call_safe",
+        "bucket": "supporting",
+        "confidence": 0.93,
+        "grounded": True,
+        "recipient_ref": "sha256:abcdef0123456789",
+    }
+    packet = {
+        "decision": "collect_more",
+        "answered_denominator": 1,
+        "counts": {"supporting": 1, "disconfirming": 0, "neutral": 0, "nonresponse": 0, "invalid": 0},
+    }
+    summary = prove_live.safe_live_summary(
+        exp,
+        record,
+        packet,
+        private_result_persisted=False,
+        audit_out=__import__("pathlib").Path("data/audit.json"),
+    )
+    encoded = json.dumps(summary)
+    assert RECIPIENT["phone"] not in encoded
+    assert "transcript" not in encoded.lower()
+    assert summary["private_provider_result_persisted"] is False
+
+
+def test_private_result_writer_refuses_overwrite(tmp_path):
+    target = tmp_path / "private-result.json"
+    prove_live._write_new(target, {"id": "call_1"})
+    try:
+        prove_live._write_new(target, {"id": "call_2"})
+    except ValueError as exc:
+        assert "refusing to overwrite" in str(exc)
+    else:
+        raise AssertionError("private provider result must not overwrite silently")
