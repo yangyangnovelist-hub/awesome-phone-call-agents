@@ -17,6 +17,7 @@ from typing import Any
 
 import audit
 import countersignal as core
+import seal
 
 
 def _load(path: Path) -> Any:
@@ -38,6 +39,7 @@ def safe_live_summary(
     private_result_persisted: bool,
     audit_out: Path,
 ) -> dict[str, Any]:
+    integrity = packet.get("integrity_seal", {})
     return {
         "mode": "live_redacted_proof",
         "call_id": record.get("call_id"),
@@ -51,8 +53,10 @@ def safe_live_summary(
         "answered_denominator": packet["answered_denominator"],
         "counts": packet["counts"],
         "audit_packet": str(audit_out),
+        "audit_digest_sha256": integrity.get("digest"),
         "private_provider_result_persisted": private_result_persisted,
         "privacy_boundary": "stdout contains no phone number or full transcript",
+        "seal_boundary": "digest detects packet changes but is not an identity signature or external timestamp",
     }
 
 
@@ -106,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         ledger = audit.AuditLedger(args.audit_database)
         ledger.append(experiment, record)
-        packet = ledger.packet(experiment)
+        packet = seal.seal_packet(ledger.packet(experiment))
 
         args.audit_out.parent.mkdir(parents=True, exist_ok=True)
         args.audit_out.write_text(
