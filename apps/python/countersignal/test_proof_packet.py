@@ -49,12 +49,18 @@ def test_public_live_packet_carries_only_redacted_permission_proof():
     assert evidence["permission_verified"] is True
     assert evidence["permission_channel"] == "email"
     assert evidence["permission_consented_at"].endswith("+08:00")
+    assert evidence["grounding_verified_before_public_redaction"] is True
+    assert evidence["public_quote_withheld"] is True
+    assert evidence["quote"] == ""
+    assert packet["live_proof_policy"]["interview_permission_is_publication_permission"] is False
+    assert packet["live_proof_policy"]["live_quote_text_exported"] is False
     assert packet["live_proof_policy"]["raw_permission_receipt_exported"] is False
     assert packet["live_proof_policy"]["raw_phone_exported"] is False
     encoded = json.dumps(packet)
     assert '"phone":' not in encoded
     assert "+14155550123" not in encoded
     assert "I agree" not in encoded
+    assert "we already use a manual workaround" not in encoded
 
 
 def test_live_packet_rejects_missing_permission_proof():
