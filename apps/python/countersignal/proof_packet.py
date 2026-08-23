@@ -12,16 +12,18 @@ import permission
 def live_audit_packet(
     experiment: core.Experiment, records: Iterable[dict[str, Any]]
 ) -> dict[str, Any]:
-    """Build a public audit packet and require permission proof for every live record.
+    """Build a public audit packet from permissioned CALL-E evidence only.
 
     The private permission receipt itself is never exported. Interview permission
     is not treated as publication permission: real participant quote text is
     withheld from the public packet even after transcript grounding succeeds.
     """
     items = [dict(record) for record in records]
-    live_items = [record for record in items if record.get("source") == "calle_live"]
-    if not live_items:
+    if not items:
         raise ValueError("live proof requires at least one CALL-E live evidence record")
+    non_live = [record for record in items if record.get("source") != "calle_live"]
+    if non_live:
+        raise ValueError("public live proof cannot mix non-live evidence records")
 
     packet = audit.audit_packet(experiment, items, mode="live_redacted_ledger")
     by_call_id = {
@@ -31,8 +33,6 @@ def live_audit_packet(
     }
 
     for evidence in packet["evidence"]:
-        if evidence.get("source") != "calle_live":
-            continue
         record = by_call_id.get(evidence.get("call_id"))
         if record is None:
             raise ValueError("live evidence is missing its redacted source record")
@@ -59,6 +59,7 @@ def live_audit_packet(
 
     packet["live_proof_policy"] = {
         "minimum_live_evidence_records": 1,
+        "live_evidence_only": True,
         "permission_required": True,
         "recipient_binding_required": True,
         "answered_quote_grounding_required": True,
