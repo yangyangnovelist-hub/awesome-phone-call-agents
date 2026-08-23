@@ -1,10 +1,9 @@
 """Privacy-safe CounterSignal proof runner.
 
-Preview is the default. A real call requires the same explicit live gates as
-CounterSignal's core CLI plus a structured affirmative permission receipt.
-Successful live runs append only redacted evidence to an audit ledger and print
-a judge-safe summary. Raw provider payloads are never printed and are persisted
-only when --private-result-out is explicitly supplied.
+Preview is the default. A real call requires explicit live gates plus a
+structured affirmative permission receipt. The transport-independent proof
+orchestrator is separately testable: accepted CALL-E result -> bound evidence ->
+privacy-minimized ledger -> live-only public packet -> content seal.
 """
 
 from __future__ import annotations
@@ -34,6 +33,63 @@ def _write_new(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def run_after_live_gates(
+    experiment: core.Experiment,
+    recipient: core.Recipient,
+    permission: dict[str, Any],
+    calls: core.CallsAPI,
+    reservation_ledger: core.ReservationLedger,
+    audit_ledger: audit.AuditLedger,
+    *,
+    timeout_seconds: int = 600,
+) -> dict[str, Any]:
+    """Execute and assemble one proof after outer authorization gates have passed.
+
+    The CLI validates the private receipt, exact allowlist, live enable flag and
+    credential origin before providing the real CALL-E transport. Keeping the
+    post-gate orchestration in one function makes the full evidence path
+    deterministic and testable with an in-memory/fake CallsAPI.
+    """
+    if permission.get("permission_verified") is not True:
+        raise ValueError("validated affirmative permission is required")
+    if permission.get("experiment_id") != experiment.experiment_id:
+        raise ValueError("validated permission belongs to a different experiment")
+
+    payload = core.execute(
+        experiment,
+        recipient,
+        calls,
+        reservation_ledger,
+        timeout_seconds,
+    )
+    provider_result = payload["provider_result"]
+    call_id = payload["call_id"]
+
+    record = audit.evidence_record(
+        experiment, recipient, provider_result, expected_call_id=call_id
+    )
+    record["permission_verified"] = True
+    record["permission_channel"] = permission["channel"]
+    record["permission_consented_at"] = permission["consented_at"]
+
+    audit_ledger.append(experiment, record)
+    stored_records = audit_ledger.records(experiment)
+    stored_record = next(
+        (item for item in stored_records if item.get("call_id") == call_id), None
+    )
+    if stored_record is None:
+        raise RuntimeError("accepted CALL-E evidence was not present in the audit ledger")
+
+    public_packet = proof_packet.live_audit_packet(experiment, stored_records)
+    packet = seal.seal_packet(public_packet)
+    return {
+        "call_id": call_id,
+        "provider_result": provider_result,
+        "record": stored_record,
+        "packet": packet,
+    }
+
+
 def safe_live_summary(
     experiment: core.Experiment,
     record: dict[str, Any],
@@ -56,6 +112,7 @@ def safe_live_summary(
         "grounded": bool(record.get("grounded", False)),
         "recipient_binding_verified": bool(record.get("recipient_binding_verified", False)),
         "recipient_ref": record.get("recipient_ref"),
+        "quote_withheld_at_rest": bool(record.get("quote_withheld_at_rest", False)),
         "decision": packet["decision"],
         "answered_denominator": packet["answered_denominator"],
         "counts": packet["counts"],
@@ -110,31 +167,17 @@ def main(argv: list[str] | None = None) -> int:
         from calle import CalleClient
 
         with CalleClient(api_key=key, base_url=base_url) as client:
-            payload = core.execute(
+            proof = run_after_live_gates(
                 experiment,
                 recipient,
+                permission,
                 client.calls,
                 core.ReservationLedger(args.reservation_database),
-                args.timeout_seconds,
+                audit.AuditLedger(args.audit_database),
+                timeout_seconds=args.timeout_seconds,
             )
 
-        provider_result = payload["provider_result"]
-        call_id = payload["call_id"]
-        record = audit.evidence_record(
-            experiment, recipient, provider_result, expected_call_id=call_id
-        )
-        record["grounding_verified_before_redaction"] = bool(record.get("grounded", False))
-        record["quote"] = ""
-        record["quote_withheld_from_ledger"] = True
-        record["permission_verified"] = True
-        record["permission_channel"] = permission["channel"]
-        record["permission_consented_at"] = permission["consented_at"]
-
-        ledger = audit.AuditLedger(args.audit_database)
-        ledger.append(experiment, record)
-        public_packet = proof_packet.live_audit_packet(experiment, ledger.records(experiment))
-        packet = seal.seal_packet(public_packet)
-
+        packet = proof["packet"]
         args.audit_out.parent.mkdir(parents=True, exist_ok=True)
         args.audit_out.write_text(
             json.dumps(packet, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -142,14 +185,14 @@ def main(argv: list[str] | None = None) -> int:
 
         private_persisted = False
         if args.private_result_out is not None:
-            _write_new(args.private_result_out, provider_result)
+            _write_new(args.private_result_out, proof["provider_result"])
             private_persisted = True
 
         print(
             json.dumps(
                 safe_live_summary(
                     experiment,
-                    record,
+                    proof["record"],
                     packet,
                     private_result_persisted=private_persisted,
                     audit_out=args.audit_out,
