@@ -19,6 +19,10 @@ def live_audit_packet(
     withheld from the public packet even after transcript grounding succeeds.
     """
     items = [dict(record) for record in records]
+    live_items = [record for record in items if record.get("source") == "calle_live"]
+    if not live_items:
+        raise ValueError("live proof requires at least one CALL-E live evidence record")
+
     packet = audit.audit_packet(experiment, items, mode="live_redacted_ledger")
     by_call_id = {
         record.get("call_id"): record
@@ -54,6 +58,7 @@ def live_audit_packet(
         evidence["public_quote_withheld"] = True
 
     packet["live_proof_policy"] = {
+        "minimum_live_evidence_records": 1,
         "permission_required": True,
         "recipient_binding_required": True,
         "answered_quote_grounding_required": True,
