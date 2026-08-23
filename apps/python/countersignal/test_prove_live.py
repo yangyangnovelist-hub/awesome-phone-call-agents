@@ -87,7 +87,9 @@ def test_safe_live_summary_contains_no_raw_identity_or_conversation_content():
     assert summary["recipient_binding_verified"] is True
     assert summary["audit_digest_sha256"] == "abc123"
     assert summary["private_provider_result_persisted"] is False
-    assert "no phone number or full transcript" in summary["privacy_boundary"]
+    assert "no phone number" in summary["privacy_boundary"]
+    assert "full transcript" in summary["privacy_boundary"]
+    assert "real quote text" in summary["privacy_boundary"]
 
 
 def test_private_result_writer_refuses_overwrite(tmp_path):
