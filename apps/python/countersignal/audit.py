@@ -4,7 +4,7 @@ The audit layer is deliberately privacy-minimizing: public evidence contains no
 phone-derived identifier. Recipient binding is checked against the raw provider
 result before redaction; the exported reference is derived only from the public
 experiment/protocol/call identity. The durable ledger stores those redacted
-records, never raw provider payloads or full transcripts.
+records, never raw provider payloads, full transcripts, or live quote text.
 """
 
 from __future__ import annotations
@@ -215,6 +215,7 @@ def audit_packet(
                 "confidence": record.get("confidence", 0.0),
                 "grounded": bool(record.get("grounded", False)),
                 "quote": record.get("quote", ""),
+                "quote_withheld_at_rest": bool(record.get("quote_withheld_at_rest", False)),
                 "disposition": record.get("disposition"),
                 "reason": record.get("reason", ""),
             }
@@ -224,7 +225,7 @@ def audit_packet(
 
 
 class AuditLedger:
-    """Append-only API over SQLite containing only redacted evidence records."""
+    """Append-only API over SQLite containing only privacy-minimized evidence records."""
 
     def __init__(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -243,9 +244,18 @@ class AuditLedger:
     def _canonical(record: dict[str, Any]) -> str:
         return json.dumps(record, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
+    @staticmethod
+    def _for_storage(record: dict[str, Any]) -> dict[str, Any]:
+        """Apply durable-at-rest minimization independent of the calling workflow."""
+        item = dict(record)
+        if item.get("source") == "calle_live":
+            item["quote"] = ""
+            item["quote_withheld_at_rest"] = True
+        return item
+
     def append(self, experiment: core.Experiment, record: dict[str, Any]) -> bool:
         """Append one live record. Identical retries are idempotent; conflicts fail closed."""
-        item = _normalized_records([record])[0]
+        item = self._for_storage(_normalized_records([record])[0])
         call_id = item.get("call_id")
         if not isinstance(call_id, str) or not call_id:
             raise ValueError("durable evidence requires a CALL-E call_id")
