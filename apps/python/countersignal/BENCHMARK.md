@@ -2,7 +2,7 @@
 
 This benchmark isolates one product claim: **evidence against the operator's hypothesis remains load-bearing even when supportive interviews are still the numerical majority.**
 
-It compares two explicit deterministic decision policies over the same evidence. It is not a comparison against a named commercial AI research product.
+It compares two explicit deterministic decision policies over the same evidence. It is not a comparison against a named commercial AI research product, an LLM summarizer, or a claim that majority voting is the industry standard.
 
 ## Frozen protocol
 
@@ -34,11 +34,26 @@ From `apps/python/countersignal/`:
 ```bash
 python benchmark.py
 python benchmark.py --json
-pytest -q test_product_v2.py test_console_product_v2.py
+python verify_product_v2.py
+python -m pytest -q
 ```
 
-The benchmark has no network dependency and places no phone calls.
+`verify_product_v2.py` additionally checks the frozen protocol, next-evidence sensitivity, local/no-network browser surfaces, and a generated audit packet's content seal. The benchmark and verifier require no credentials and place no phone calls.
+
+For a real permissioned CALL-E proof, `prove_live.py` appends only redacted evidence to the audit ledger. The exported audit JSON can then be dropped into `audit-verifier.html` to recompute its SHA-256 content digest locally before it is loaded into the Decision Audit Console.
+
+## What this establishes
+
+The test is useful because its falsification condition is explicit. A regression is visible if any of these happen:
+
+- one grounded contradiction no longer removes provisional support;
+- three grounded contradictions no longer weaken the hypothesis;
+- voicemail starts increasing the answered denominator;
+- the displayed 8/5/3 contract drifts away from the frozen experiment;
+- the same evidence produces a different deterministic CounterSignal state.
+
+Those are product invariants, not subjective demo impressions.
 
 ## Claim boundary
 
-This benchmark demonstrates a difference between two deterministic evidence policies. It does **not** establish that CounterSignal improves population inference, product-market-fit prediction, interview quality, or business outcomes. Those require separate empirical validation. The live dogfood study is designed to add real CALL-E evidence without changing the pre-registered decision rule.
+This benchmark demonstrates a difference between two deterministic evidence policies. It does **not** establish that CounterSignal improves population inference, product-market-fit prediction, interview quality, or business outcomes. It also does not claim the naive-majority baseline represents a specific commercial product. Those require separate empirical validation. The live dogfood study is designed to add real CALL-E evidence without changing the pre-registered decision rule.
