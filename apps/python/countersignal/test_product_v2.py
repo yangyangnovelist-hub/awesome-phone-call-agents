@@ -43,13 +43,28 @@ def provider_result(bucket="supporting", call_id="call_123"):
     }
     recipient_text = "We call the city every week until someone clarifies it."
     if bucket == "disconfirming":
-        structured.update(problem_occurred="no", current_workaround="no", contradicts_hypothesis="yes", key_quote="the portal is usually enough")
+        structured.update(
+            problem_occurred="no",
+            current_workaround="no",
+            contradicts_hypothesis="yes",
+            key_quote="the portal is usually enough",
+        )
         recipient_text = "The portal is usually enough for us."
     elif bucket == "neutral":
-        structured.update(problem_occurred="unknown", current_workaround="no", key_quote="only on unusual projects")
+        structured.update(
+            problem_occurred="unknown",
+            current_workaround="no",
+            key_quote="only on unusual projects",
+        )
         recipient_text = "It happens only on unusual projects."
     elif bucket == "nonresponse":
-        structured.update(continued_after_ai_disclosure="no", disposition="voicemail", problem_occurred="unknown", current_workaround="unknown", key_quote="")
+        structured.update(
+            continued_after_ai_disclosure="no",
+            disposition="voicemail",
+            problem_occurred="unknown",
+            current_workaround="unknown",
+            key_quote="",
+        )
         recipient_text = ""
     return {
         "id": call_id,
@@ -62,12 +77,21 @@ def provider_result(bucket="supporting", call_id="call_123"):
             "protocol_hash": c.protocol_hash(exp),
         },
         "structured_result": structured,
-        "recipients": [{"phone": rec.phone, "attempts": [{"transcript_turns": [{"speaker": "recipient", "text": recipient_text}]}]}],
+        "recipients": [
+            {
+                "phone": rec.phone,
+                "attempts": [
+                    {"transcript_turns": [{"speaker": "recipient", "text": recipient_text}]}
+                ],
+            }
+        ],
     }
 
 
 def test_live_evidence_record_redacts_phone_and_preserves_provenance():
-    record = audit.evidence_record(experiment(), recipient(), provider_result(), expected_call_id="call_123")
+    record = audit.evidence_record(
+        experiment(), recipient(), provider_result(), expected_call_id="call_123"
+    )
     assert record["bucket"] == "supporting"
     assert record["call_id"] == "call_123"
     assert record["source"] == "calle_live"
@@ -76,14 +100,36 @@ def test_live_evidence_record_redacts_phone_and_preserves_provenance():
     assert record["recipient_ref"].startswith("sha256:")
 
 
+def test_nonresponse_audit_record_does_not_require_a_quote():
+    record = audit.evidence_record(
+        experiment(), recipient(), provider_result("nonresponse", "call_vm")
+    )
+    assert record["bucket"] == "nonresponse"
+    assert record["answered"] is False
+    assert record["grounded"] is False
+    assert record["quote"] == ""
+
+
 def test_decision_replay_exposes_support_inconclusive_and_weakened_transitions():
     exp = experiment()
     records = []
-    for i, bucket in enumerate(["supporting"] * 5 + ["neutral"] * 3 + ["disconfirming"] * 3):
-        r = audit.evidence_record(exp, recipient(), provider_result(bucket, f"call_{i}"), expected_call_id=f"call_{i}")
-        records.append(r)
+    for i, bucket in enumerate(
+        ["supporting"] * 5 + ["neutral"] * 3 + ["disconfirming"] * 3
+    ):
+        records.append(
+            audit.evidence_record(
+                exp,
+                recipient(),
+                provider_result(bucket, f"call_{i}"),
+                expected_call_id=f"call_{i}",
+            )
+        )
     states = [step["decision"] for step in audit.decision_replay(exp, records)]
-    assert states[-3:] == ["hypothesis_supported_under_rule", "inconclusive", "hypothesis_weakened"]
+    assert states[-3:] == [
+        "hypothesis_supported_under_rule",
+        "inconclusive",
+        "hypothesis_weakened",
+    ]
 
 
 def test_audit_packet_rejects_cross_protocol_evidence():
@@ -96,6 +142,36 @@ def test_audit_packet_rejects_cross_protocol_evidence():
         assert "different protocol" in str(exc)
     else:
         raise AssertionError("cross-protocol evidence must be rejected")
+
+
+def test_audit_packet_rejects_cross_experiment_evidence():
+    exp = experiment()
+    record = audit.evidence_record(exp, recipient(), provider_result())
+    record["experiment_id"] = "other-experiment"
+    try:
+        audit.audit_packet(exp, [record])
+    except ValueError as exc:
+        assert "different experiment" in str(exc)
+    else:
+        raise AssertionError("cross-experiment evidence must be rejected")
+
+
+def test_decision_fragility_reports_exact_distance_to_weaken():
+    exp = experiment()
+    records = []
+    for i, bucket in enumerate(["supporting"] * 5 + ["neutral"] * 3):
+        records.append(
+            audit.evidence_record(
+                exp,
+                recipient(),
+                provider_result(bucket, f"call_f{i}"),
+                expected_call_id=f"call_f{i}",
+            )
+        )
+    fragility = audit.decision_fragility(exp, records)
+    assert fragility["current_decision"] == "hypothesis_supported_under_rule"
+    assert fragility["contradictions_to_remove_support"] == 1
+    assert fragility["contradictions_to_weaken"] == 3
 
 
 def test_benchmark_makes_three_contradictions_load_bearing():
