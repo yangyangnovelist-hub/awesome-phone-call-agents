@@ -187,13 +187,43 @@ def test_next_evidence_counterfactuals_identify_decision_relevant_outcome():
             )
         )
     scenarios = {
-        row["next_bucket"]: row for row in audit.next_evidence_counterfactuals(exp, records)
+        row["next_bucket"]: row for row in audit.counterfactual_next_evidence(exp, records)
     }
     assert scenarios["disconfirming"]["before"] == "hypothesis_supported_under_rule"
     assert scenarios["disconfirming"]["after"] == "inconclusive"
     assert scenarios["disconfirming"]["changes_decision"] is True
     assert scenarios["supporting"]["changes_decision"] is False
-    assert scenarios["nonresponse"]["answered_denominator_after"] == 8
+    assert scenarios["nonresponse"]["answered_after"] == 8
+
+
+def test_redacted_ledger_is_idempotent_and_never_persists_phone(tmp_path):
+    exp = experiment()
+    record = audit.evidence_record(
+        exp, recipient(), provider_result("supporting", "call_ledger_1"), expected_call_id="call_ledger_1"
+    )
+    ledger = audit.AuditLedger(tmp_path / "audit.sqlite3")
+    assert ledger.append(exp, record) is True
+    assert ledger.append(exp, record) is False
+    packet = ledger.packet(exp)
+    assert packet["counts"]["supporting"] == 1
+    assert RECIPIENT_DATA["phone"].encode() not in (tmp_path / "audit.sqlite3").read_bytes()
+
+
+def test_redacted_ledger_rejects_conflicting_duplicate_call_id(tmp_path):
+    exp = experiment()
+    ledger = audit.AuditLedger(tmp_path / "audit.sqlite3")
+    first = audit.evidence_record(
+        exp, recipient(), provider_result("supporting", "call_same"), expected_call_id="call_same"
+    )
+    assert ledger.append(exp, first) is True
+    conflicting = dict(first)
+    conflicting["bucket"] = "neutral"
+    try:
+        ledger.append(exp, conflicting)
+    except ValueError as exc:
+        assert "different evidence" in str(exc)
+    else:
+        raise AssertionError("conflicting duplicate call id must fail closed")
 
 
 def test_benchmark_makes_three_contradictions_load_bearing():
