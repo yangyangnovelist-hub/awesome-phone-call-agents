@@ -39,6 +39,10 @@ def _script(html: str) -> str:
     return html.split("<script>", 1)[1].split("</script>", 1)[0]
 
 
+def _has_no_network_api(script: str) -> bool:
+    return "fetch(" not in script and "XMLHttpRequest" not in script and "sendBeacon" not in script
+
+
 def verify() -> dict[str, object]:
     experiment = core.parse_experiment(
         json.loads((ROOT / "smallbet-experiment.json").read_text(encoding="utf-8"))
@@ -53,7 +57,9 @@ def verify() -> dict[str, object]:
     sealed = seal.seal_packet(packet)
     console = (ROOT / "judge-console.html").read_text(encoding="utf-8")
     verifier = (ROOT / "audit-verifier.html").read_text(encoding="utf-8")
+    award = (ROOT / "index.html").read_text(encoding="utf-8")
     verifier_script = _script(verifier)
+    award_script = _script(award)
 
     checks = {
         "frozen_rule_is_8_5_3": (
@@ -85,10 +91,24 @@ def verify() -> dict[str, object]:
         "console_exposes_audit_import": "Load audit JSON" in console,
         "console_exposes_benchmark": "Contradiction stress benchmark" in console,
         "verifier_recomputes_sha256": "crypto.subtle.digest" in verifier_script,
-        "verifier_has_no_network_api": (
-            "fetch(" not in verifier_script
-            and "XMLHttpRequest" not in verifier_script
-            and "sendBeacon" not in verifier_script
+        "verifier_requires_nonempty_live_evidence": (
+            "live.length>0" in verifier_script
+            and "packet.mode==='live_redacted_ledger'" in verifier_script
+            and "policy.minimum_live_evidence_records===1" in verifier_script
+        ),
+        "verifier_has_no_network_api": _has_no_network_api(verifier_script),
+        "award_surface_has_decision_integrity_story": (
+            "Customer research that can prove you wrong." in award
+            and "Not a prettier summary. A different epistemic policy." in award
+            and "Try to kill the hypothesis." in award
+        ),
+        "award_surface_verifies_live_proof_locally": (
+            "crypto.subtle.digest" in award_script
+            and "live.length>0" in award_script
+            and "permission_verified===true" in award_script
+            and "recipient_binding_verified===true" in award_script
+            and "live.every(e=>!e.quote)" in award_script
+            and _has_no_network_api(award_script)
         ),
     }
     return {
