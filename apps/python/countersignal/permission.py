@@ -7,7 +7,7 @@ from typing import Any
 
 import countersignal as core
 
-ALLOWED_PERMISSION_CHANNELS = {"email", "sms", "web_form", "in_person", "other_non_phone"}
+ALLOWED_PERMISSION_CHANNELS = {"email", "sms", "web_form", "in_person", "other_non_call"}
 
 
 def _text(value: Any, field: str, limit: int = 200) -> str:
@@ -40,7 +40,7 @@ def validate_permission_receipt(
 
     channel = _text(value.get("channel"), "channel", 40)
     if channel not in ALLOWED_PERMISSION_CHANNELS:
-        raise ValueError("permission receipt channel must be a supported non-phone permission channel")
+        raise ValueError("permission receipt channel must be a supported non-call permission channel")
 
     consented_at = _text(value.get("consented_at"), "consented_at", 80)
     try:
