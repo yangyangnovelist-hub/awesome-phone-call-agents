@@ -67,7 +67,7 @@ def test_phone_call_is_not_an_allowed_permission_channel():
     try:
         permission.validate_permission_receipt(exp(), rec(), value)
     except ValueError as exc:
-        assert "non-phone" in str(exc)
+        assert "non-call" in str(exc)
     else:
         raise AssertionError("phone cannot establish permission for the proof call")
 
