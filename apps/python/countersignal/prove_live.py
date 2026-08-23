@@ -1,9 +1,10 @@
 """Privacy-safe CounterSignal proof runner.
 
 Preview is the default. A real call requires the same explicit live gates as
-CounterSignal's core CLI. Successful live runs append only redacted evidence to
-an audit ledger and print a judge-safe summary. Raw provider payloads are never
-printed and are persisted only when --private-result-out is explicitly supplied.
+CounterSignal's core CLI plus a structured affirmative permission receipt.
+Successful live runs append only redacted evidence to an audit ledger and print
+a judge-safe summary. Raw provider payloads are never printed and are persisted
+only when --private-result-out is explicitly supplied.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from typing import Any
 
 import audit
 import countersignal as core
+import permission as permission_gate
 import seal
 
 
@@ -45,9 +47,13 @@ def safe_live_summary(
         "call_id": record.get("call_id"),
         "experiment_id": experiment.experiment_id,
         "protocol_hash": core.protocol_hash(experiment),
+        "permission_verified": bool(record.get("permission_verified", False)),
+        "permission_channel": record.get("permission_channel"),
+        "permission_consented_at": record.get("permission_consented_at"),
         "bucket": record["bucket"],
         "confidence": record.get("confidence", 0.0),
         "grounded": bool(record.get("grounded", False)),
+        "recipient_binding_verified": bool(record.get("recipient_binding_verified", False)),
         "recipient_ref": record.get("recipient_ref"),
         "decision": packet["decision"],
         "answered_denominator": packet["answered_denominator"],
@@ -64,6 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--experiment", type=Path, required=True)
     parser.add_argument("--recipient", type=Path, required=True)
+    parser.add_argument("--permission-receipt", type=Path)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--confirm-one-reviewed-recipient", action="store_true")
     parser.add_argument("--allow", action="append", default=[])
@@ -79,10 +86,17 @@ def main(argv: list[str] | None = None) -> int:
         recipient = core.parse_recipient(_load(args.recipient))
         if not args.execute:
             preview = core.preview(experiment, recipient)
-            preview["recommended_live_command"] = "prove_live.py --execute with explicit reviewed-recipient gates"
+            preview["recommended_live_command"] = (
+                "prove_live.py --execute with --permission-receipt and explicit reviewed-recipient gates"
+            )
             print(json.dumps(preview, ensure_ascii=False, indent=2))
             return 0
 
+        if args.permission_receipt is None:
+            raise ValueError("--execute requires --permission-receipt")
+        permission = permission_gate.validate_permission_receipt(
+            experiment, recipient, _load(args.permission_receipt)
+        )
         if not args.confirm_one_reviewed_recipient:
             raise ValueError("--execute requires --confirm-one-reviewed-recipient")
         if recipient.phone not in set(args.allow):
@@ -108,6 +122,9 @@ def main(argv: list[str] | None = None) -> int:
         record = audit.evidence_record(
             experiment, recipient, provider_result, expected_call_id=call_id
         )
+        record["permission_verified"] = True
+        record["permission_channel"] = permission["channel"]
+        record["permission_consented_at"] = permission["consented_at"]
         ledger = audit.AuditLedger(args.audit_database)
         ledger.append(experiment, record)
         packet = seal.seal_packet(ledger.packet(experiment))
