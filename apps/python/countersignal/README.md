@@ -1,245 +1,292 @@
 # CounterSignal
 
-**Falsifiable customer discovery over real phone calls.** CounterSignal uses CALL-E as a bounded interview instrument, then applies a pre-registered decision rule that preserves evidence against the founder's own hypothesis.
+> **Customer research that can prove you wrong.**
 
-CounterSignal is deliberately not a lead-qualification or booking workflow. It does not close, persuade, negotiate, offer discounts, or convert a call into a sales action. The unit of work is an experiment: freeze a hypothesis and question protocol, call one reviewed recipient, preserve what was actually said, and decide whether the accumulated evidence says to continue, weaken the hypothesis, or — under an explicit rule — provisionally support it.
+CounterSignal is a **decision-integrity layer for AI customer research** built on CALL-E. It freezes the hypothesis, questions, and decision thresholds before evidence collection; keeps contradictory evidence load-bearing; excludes silence and unreliable results from the answered denominator; and makes the exact decision transition replayable.
 
-## Why this exists
+It is not a lead qualifier, booking workflow, or generic AI interview summarizer. The product question is narrower and harder:
 
-Customer discovery has an asymmetric failure mode: supportive anecdotes are memorable while contradictions get explained away. A founder can change the wording between interviews, pitch during the call, silently exclude refusals, or reinterpret an ambiguous answer after seeing it. CounterSignal treats those as data-integrity problems rather than prompt-writing problems.
+**Given the evidence we actually collected, should we lose confidence in the business hypothesis we wrote down before the interviews began?**
 
-This is not a problem invented for the demo. The US National Cancer Institute's SPRINT program describes customer discovery as turning a potential venture into business-model hypotheses, interviewing stakeholders to validate **or disprove** them, and making substantive changes when assumptions fail in the real world. Independent interview-method research reports that leading question wording can influence responses and weaken the trustworthiness of findings. In a 2022 experimental analysis spanning 2,084 simulated interviews, interviewers' preliminary assumptions predicted their conclusions, confidence, use of non-recommended question types, and likelihood of reaching the correct conclusion.
+## Start here — the judge experience
 
-Sources:
+Open `index.html` first.
 
-- [NCI SPRINT: customer discovery as hypothesis testing](https://pmc.ncbi.nlm.nih.gov/articles/PMC7184906/)
-- [Cairns-Lee, Lawley & Tosey: influence of leading questions in interviews](https://doi.org/10.1177/00218863211037446)
-- [Zhang: confirmation bias in simulated interviews](https://doi.org/10.1111/lcrp.12213)
+The flagship surface is designed to communicate the product in about 60 seconds:
 
-Those studies do not prove that CounterSignal itself improves research quality. They establish the failure mode that its protocol is designed to constrain; the app's own effect must be measured separately.
+1. Start at provisional support under the frozen **8 / 5 / 3** rule.
+2. Add a voicemail. Attempted calls increase; the answered denominator stays **8**.
+3. Add one grounded contradiction. Provisional support disappears and the decision becomes **inconclusive**.
+4. Add three grounded contradictions. The hypothesis becomes **`hypothesis_weakened`**, even though five supporting interviews remain visible.
+5. Inspect the deterministic benchmark: the naive majority baseline is still `positive_signal` at 5 support vs 3 contradictions.
+6. Use the embedded local verifier for a future sealed live CALL-E audit packet.
 
-The app therefore makes five things load-bearing:
+For deeper inspection:
 
-1. **Pre-registration.** The hypothesis, segment, fixed questions, and decision thresholds are hashed before the first call.
-2. **No protocol drift.** The CALL-E task contains the exact frozen questions and permits only one neutral clarification per answer.
-3. **Negative evidence is first-class.** A grounded contradiction can weaken the hypothesis; it is never rewritten as a lead objection.
-4. **Honest denominators.** Refusal, voicemail, unreachable, and invalid results do not become answered interviews.
-5. **Evidence binding.** A result is useful only when it belongs to the exact experiment, protocol, CALL-E call, and recipient, and its key quote is grounded in recipient-side transcript text.
+- `judge-console.html` — full Decision Audit Console: replay, fragility, provenance, counterfactual next evidence, audit import/export.
+- `audit-verifier.html` — dedicated offline verifier for permissioned live-proof packets.
+- `BENCHMARK.md` — exact deterministic benchmark and claim boundary.
+- `LIVE-PROOF.md` — permission-first real CALL-E proof workflow.
+- `DEMO.md` — award video script.
 
-## Decision Audit Console
+## Product thesis
 
-The browser reviewer experience turns those rules into visible product behavior rather than documentation claims. Open `judge-console.html` to:
+AI can make customer interviews faster. Speed alone does not solve confirmation bias.
 
-- replay the exact evidence item that changes the experiment state;
-- inspect decision fragility — how many grounded contradictions would remove support or weaken the hypothesis;
-- keep contradictory evidence in a dedicated adversarial queue instead of averaging it away;
-- inspect per-record provenance and confidence;
-- export a redacted `countersignal.audit.v1` packet; and
-- load a redacted live audit packet locally, with exact experiment/protocol checks and no upload.
+Customer-discovery evidence is unusually easy to contaminate after the fact: questions drift, supportive anecdotes dominate memory, contradictions get reframed as objections, failed contacts silently disappear from the denominator, and an ambiguous model summary can be mistaken for respondent evidence.
 
-Preset evidence is deterministic and visibly labeled simulated. A real CALL-E record can enter the console only after the Python evidence gate has classified and redacted it.
+CounterSignal treats these as **data-integrity and decision-governance problems**, not prompt-writing problems.
 
-## Reproducible contradiction benchmark
+Five invariants are therefore load-bearing:
 
-`benchmark.py` compares CounterSignal's frozen policy against a deliberately simple, fully specified majority heuristic over the same evidence. This is not a benchmark against a named commercial AI product.
+1. **Pre-registration** — segment, hypothesis, fixed questions, and thresholds are hashed before evidence collection.
+2. **No silent protocol drift** — changing the study changes the protocol identity.
+3. **Contradictions remain load-bearing** — supportive evidence cannot average away a pre-registered contradiction threshold.
+4. **Honest denominators** — voicemail, refusal, unreachable, and invalid results do not become answered interviews.
+5. **Evidence binding** — usable live evidence must belong to the exact experiment, protocol, accepted CALL-E call and reviewed recipient, and answered evidence must pass transcript grounding before public redaction.
 
-Under the pre-registered SmallBet 8/5/3 rule, five supporting interviews and three grounded contradictions produce:
+The decision is an **operational experiment rule**, not a population estimate and not a product-market-fit claim.
 
-- naive majority: `positive_signal` (5 support > 3 contradictions)
-- CounterSignal: `hypothesis_weakened` (the pre-registered contradiction threshold is met)
+## Frozen SmallBet protocol
 
-Run:
+The award-facing dogfood protocol is `smallbet-permit-ops-v1`.
+
+Protocol hash:
+
+```text
+a7229d00ec935e760d5764572b142a33a062095db0df8c5f3f32c18b88b47a56
+```
+
+Decision rule:
+
+- minimum answered interviews: **8**
+- provisional support: **5 supporting interviews and zero contradictions**
+- hypothesis weakening: **3 grounded contradictions**
+
+Changing the hypothesis, segment, questions, or thresholds creates a different protocol hash and therefore a different experiment version.
+
+## Same evidence, different epistemic policy
+
+`benchmark.py` compares CounterSignal against a deliberately simple, fully specified naive-majority policy over the same classified evidence.
+
+It is **not** presented as a benchmark against any named commercial research product.
+
+| Evidence | Naive majority | CounterSignal |
+| --- | --- | --- |
+| 5 support + 3 neutral | `positive_signal` | `hypothesis_supported_under_rule` |
+| + 1 contradiction | `positive_signal` | `inconclusive` |
+| + 2 contradictions | `positive_signal` | `inconclusive` |
+| + 3 contradictions | `positive_signal` | `hypothesis_weakened` |
+| + 5 voicemails instead | `positive_signal` | support unchanged; answered stays 8 |
+
+Reproduce it:
 
 ```bash
-python benchmark.py
+cd apps/python/countersignal
 python benchmark.py --json
 ```
 
-See `BENCHMARK.md` for the complete deterministic cases and claim boundary.
+The benchmark establishes a difference between two deterministic decision policies. It does not establish superior population inference, product-market-fit prediction, interview quality, or commercial outcomes.
 
-## Portable evidence audit
+## Decision Audit Console
 
-`audit.py` converts a provider result that has already passed CounterSignal's classification gates into a privacy-minimizing audit record. It preserves the CALL-E call ID, experiment and protocol identity, confidence, grounded quote, classification, and reason while replacing the destination phone number with a stable one-way recipient fingerprint.
+`judge-console.html` makes the evidence policy visible rather than leaving it in backend code.
 
-An audit packet rejects evidence carrying a different experiment ID or protocol hash. It also includes **next-evidence counterfactuals**: for each possible next classified outcome, CounterSignal reports whether that one additional result would change the current decision and whether it would enter the answered denominator. This is a policy sensitivity tool, not a prediction of what the next respondent will say.
+It exposes:
 
-## Distinction from existing CALL-E examples
+- the current decision and reason;
+- the exact frozen protocol identity;
+- attempted vs answered counts;
+- supporting, disconfirming, neutral, nonresponse, and invalid outcomes;
+- **Decision Replay** — the exact evidence item that changed the state;
+- **Decision Fragility** — how many contradictions remain before support disappears or the hypothesis weakens;
+- **Adversarial Evidence Queue** — contradictions are kept visible instead of averaged away;
+- **Next-evidence counterfactuals** — what each possible next classified outcome would do to the decision, without pretending to predict the next respondent;
+- per-record provenance;
+- local audit import/export.
 
-The repository already contains sales follow-up/booking and a standardized survey runner. CounterSignal has a different objective and decision boundary:
+The built-in reviewer fixture is deterministic, simulated, and labeled as such. It places no phone calls.
 
-- a **lead workflow** asks whether a person should advance toward a commercial next step;
-- a **survey runner** standardizes collection of respondent answers;
-- **CounterSignal** asks whether accumulated phone evidence should cause the operator to lose confidence in a pre-registered business hypothesis.
+## Permission-first live proof
 
-That distinction changes the call script, state model, evidence policy, denominator, and final output. CounterSignal never returns `qualified`, never books a meeting, and never treats willingness to talk again as proof of demand.
+The preferred real-call path is `prove_live.py`, not the raw core CLI.
 
-## Core flow
+A public phone number is **not** treated as permission for an AI research call.
 
-```text
-pre-registered hypothesis + fixed questions + decision rule
-                         |
-                         v
-               deterministic protocol hash
-                         |
-                         v
-reviewed recipient -> no-call preview -> explicit live gates -> CALL-E
-                                                      |
-                                                      v
-                                             structured result
-                                                      |
-                                                      v
-                                      call/experiment/recipient binding
-                                                      |
-                                                      v
-                                         transcript quote grounding
-                                                      |
-                       +------------------------------+------------------+
-                       |                              |                  |
-                       v                              v                  v
-                 supporting                    disconfirming        neutral
-                       \______________________________|__________________/
-                                                      |
-                                                      v
-                                      frozen experiment decision rule
-                                                      |
-                    +----------------+----------------+----------------+
-                    |                |                                 |
-                    v                v                                 v
-              collect_more   hypothesis_weakened   hypothesis_supported_under_rule / inconclusive
-                                                      |
-                                                      v
-                             redacted audit + replay + next-evidence sensitivity
+A live proof requires a private local permission receipt such as:
+
+```json
+{
+  "experiment_id": "smallbet-permit-ops-v1",
+  "phone": "+15551234567",
+  "ai_interview_opt_in": true,
+  "channel": "email",
+  "consented_at": "2026-08-23T13:30:00+08:00",
+  "statement": "I agree to receive one AI-assisted customer research interview by phone."
+}
 ```
 
-The decision is an **operational experiment rule**, not a population-level statistical estimate and not a claim of product-market fit.
+Supported machine values for the permission channel are:
 
-## Run the credential-free path
+- `email`
+- `sms`
+- `web_form`
+- `in_person`
+- `other_non_phone`
 
-Requires Python 3.11+.
+Human-facing product copy calls these **non-call permission channels**: permission must exist before the proof call itself.
+
+Preview first:
+
+```bash
+python prove_live.py \
+  --experiment smallbet-experiment.json \
+  --recipient recipient.json
+```
+
+Preview masks the destination and places no call.
+
+A permissioned real proof uses the explicit gates documented in `LIVE-PROOF.md`:
+
+```bash
+export CALLE_API_KEY="<key>"
+export CALLE_LIVE_CALLS_ENABLED=true
+
+python prove_live.py \
+  --experiment smallbet-experiment.json \
+  --recipient recipient.json \
+  --permission-receipt permission.json \
+  --execute \
+  --confirm-one-reviewed-recipient \
+  --allow +15551234567
+```
+
+Before the CALL-E SDK is imported or the production key is used, the proof runner validates the permission receipt and exact allowlist boundary.
+
+## What counts as usable live evidence
+
+A completed CALL-E call is not automatically evidence.
+
+For an answered result to enter the decision path, CounterSignal requires:
+
+- terminal successful provider state;
+- `task_completed=true`;
+- completion confidence at or above the configured gate;
+- exact structured-result schema;
+- exact accepted CALL-E call ID when supplied;
+- exact experiment metadata;
+- exact protocol hash;
+- exact reviewed-recipient binding; and
+- a recipient-side key quote that is grounded in the recipient transcript before public redaction.
+
+Classification is conservative:
+
+- **disconfirming** — the respondent directly contradicts a load-bearing hypothesis condition or reports the problem does not occur;
+- **supporting** — the problem occurs and a current workaround already exists;
+- **neutral** — valid answered interview that satisfies neither rule;
+- **nonresponse** — refusal, voicemail, unreachable, or other non-answered outcome;
+- **invalid** — incomplete, low-confidence, unbound, malformed, or ungrounded result.
+
+Disconfirming evidence takes priority after the minimum answered sample is reached. Provisional support requires the configured support count **and zero contradictions**.
+
+## Privacy-minimizing audit trail
+
+`audit.py` converts accepted results into an append-only redacted evidence ledger.
+
+The public recipient reference is **not derived from the phone number**. It is call-bound using public experiment/protocol/call identity, after raw recipient binding has already been verified.
+
+The durable evidence layer supports:
+
+- append-only SQLite persistence;
+- idempotent re-ingestion of an identical CALL-E call record;
+- fail-closed rejection when the same call ID appears with different evidence;
+- cross-experiment rejection;
+- cross-protocol rejection;
+- decision replay;
+- decision fragility;
+- next-evidence sensitivity.
+
+Raw provider results are never printed by the proof runner. They are persisted only when the operator explicitly supplies `--private-result-out`.
+
+## Interview permission is not publication permission
+
+A respondent agreeing to an AI-assisted research interview is **not** interpreted as permission to publish their transcript or quote.
+
+For public live proof, `proof_packet.py` therefore withholds by default:
+
+- phone number;
+- phone-derived hashes;
+- raw transcript;
+- private permission statement;
+- real participant quote text.
+
+The public record can expose that transcript grounding succeeded, but the real quote itself is replaced with an empty public field.
+
+`proof_packet.live_audit_packet()` also requires at least **one actual `source="calle_live"` record**. A zero-record or simulation-only packet cannot masquerade as live proof.
+
+## Content seal and independent verification
+
+Public proof packets receive `countersignal.content-seal.v1`, a deterministic SHA-256 digest over canonical packet content excluding the seal itself.
+
+`audit-verifier.html` recomputes that digest locally and additionally checks:
+
+- audit schema;
+- `mode=live_redacted_ledger`;
+- exact experiment ID;
+- exact protocol hash;
+- at least one CALL-E live evidence record;
+- `live_proof_policy.minimum_live_evidence_records=1`;
+- permission proof and supported permission channel/time;
+- reviewed-recipient binding;
+- call-bound public reference;
+- transcript grounding for answered live evidence before redaction;
+- real participant quote withholding;
+- absence of obvious raw recipient fields.
+
+The verifier has no network request API: no `fetch`, XHR, beacon, analytics, or remote scripts.
+
+The seal has a narrow claim boundary. It detects packet changes relative to its recorded digest. It does **not** authenticate the author, prove a trusted timestamp, independently attest the private consent statement, or make storage tamper-proof.
+
+## Reliability boundary
+
+Consequential outbound operations use durable reservation semantics.
+
+Before dispatch, CounterSignal reserves the exact stable call intent in SQLite. Once CALL-E accepts the call, the returned call ID is bound to that reservation. If an exception or timeout leaves the provider outcome ambiguous, the state becomes `outcome_unknown` and the same intent is not blindly redialed.
+
+The production base URL is pinned to the official CALL-E HTTPS origin. Plain HTTP is accepted only for an explicit loopback test server, which receives a fixed non-secret test key instead of the production API key.
+
+## One-command verification
+
+The award-facing claims are tied into the automated verification path:
 
 ```bash
 cd apps/python/countersignal
 python -m pytest -q
-python countersignal.py \
-  --experiment example-experiment.json \
-  --recipient example-recipient.json
+python verify_product_v2.py
+python benchmark.py --json
 ```
 
-Preview is the default. It masks the phone number, emits the exact CALL-E task, result schema, protocol hash, and idempotency key, and places no call.
+The dedicated GitHub Actions workflow runs all three on Ubuntu / Python 3.12.
 
-## Real-call boundary
+`verify_product_v2.py` checks the frozen rule, contradiction divergence, one-contradiction state change, voicemail denominator integrity, content sealing, full Decision Audit Console invariants, dedicated verifier invariants, and the flagship award surface.
 
-A live call requires all of the following independently:
+## Current proof status
 
-```bash
-export CALLE_API_KEY="<your key>"
-export CALLE_LIVE_CALLS_ENABLED="true"
+The deterministic product, benchmark, privacy boundary, verification path, and permission-first CALL-E execution path are implemented and CI-verified.
 
-python countersignal.py \
-  --experiment experiment.json \
-  --recipient recipient.json \
-  --execute \
-  --confirm-one-reviewed-recipient \
-  --allow +14155550123
-```
+A public packet should be labeled **live** only when at least one actually permissioned CALL-E interview has produced a valid `calle_live` evidence record. The simulated reviewer fixture must never be relabeled as live evidence.
 
-The `--allow` value must exactly match the selected recipient. The production base URL is pinned to the official CALL-E HTTPS origin; plain HTTP is accepted only for an explicit loopback test server. The CALL-E SDK is imported only after the live gates pass. A loopback test server receives only a fixed non-secret test key; `CALLE_API_KEY` is required and used only for the production origin.
+## Claim boundary
 
-Before crossing the real-call boundary, CounterSignal reserves the exact stable intent in SQLite. Once CALL-E returns a call ID, that ID is bound to the reservation. If a timeout or exception leaves the outcome ambiguous, the ledger moves to `outcome_unknown` and the same intent cannot automatically redial. This follows the repository's production-workflow rule that an unknown submission outcome is a state to reconcile, not permission to create another call.
+CounterSignal currently demonstrates:
 
-## Experiment contract
+- a frozen operational research policy;
+- conservative evidence admission;
+- contradiction-preserving decisions;
+- honest nonresponse denominators;
+- replayable state transitions;
+- permission-first outbound execution;
+- privacy-minimizing public proof; and
+- independent content/integrity verification.
 
-`example-experiment.json` contains a complete frozen example protocol. The important fields are:
-
-- `experiment_id`: stable experiment identity;
-- `segment`: the population being explored;
-- `problem`: the bounded workflow/problem under investigation;
-- `hypothesis`: what the operator currently believes;
-- `questions`: 3–8 fixed substantive questions;
-- `decision_rule.min_answered`: minimum valid answered interviews before a terminal experiment decision;
-- `decision_rule.support_if_at_least`: supporting interviews required for provisional support;
-- `decision_rule.weaken_if_at_least`: disconfirming interviews required to weaken the hypothesis.
-
-The protocol hash changes if the hypothesis, segment, questions, or rule changes. A changed protocol is a new experiment version, not a silent continuation.
-
-The real SmallBet dogfood protocol is separate from the compact example and is frozen in `smallbet-experiment.json`: 8 minimum answered interviews, 5 supporting for provisional support with zero contradictions, and 3 grounded contradictions to weaken the hypothesis.
-
-## Result contract
-
-CALL-E is asked for these exact fields:
-
-- `continued_after_ai_disclosure`
-- `disposition`
-- `problem_occurred`
-- `current_workaround`
-- `would_take_followup`
-- `contradicts_hypothesis`
-- `key_quote`
-- `notes`
-
-`key_quote` is intentionally required. A well-formed model conclusion without recipient-side evidence is routed to `invalid` rather than counted toward the experiment.
-
-## Decision semantics
-
-CounterSignal classifies an answered and bound result as:
-
-- **disconfirming** when the recipient directly contradicts the hypothesis or reports that the problem does not occur;
-- **supporting** only when the problem occurs and the recipient has a current workaround;
-- **neutral** when the answer is valid but does not satisfy either rule;
-- **nonresponse** for refusal, voicemail, unreachable, or other non-answered outcomes;
-- **invalid** for incomplete, low-confidence, unbound, or ungrounded results.
-
-Disconfirming evidence takes priority once the minimum answered sample is reached. Provisional support requires the configured support count **and zero disconfirming interviews** under the current rule.
-
-## Safety and integrity boundaries
-
-- AI use is disclosed before substantive questions.
-- Refusal ends the interview.
-- No selling, bargaining, payment request, discount, purchase commitment, or scheduling authority.
-- The hidden hypothesis is not read to the recipient, reducing demand-characteristic pressure.
-- The model cannot add substantive questions mid-call.
-- No answer is treated as demand merely because CALL-E completed successfully.
-- No market-size, ROI, conversion-rate, or product-market-fit claim is inferred from a small exploratory sample.
-- Every real recipient must be reviewed and explicitly allowlisted by the operator.
-
-Legal/compliance obligations for outbound research calls vary by jurisdiction and deployment context. The operator owns recipient sourcing, lawful basis/consent where applicable, calling windows, suppression lists, and retention policy; CounterSignal does not infer those from a phone number. The current US dogfood protocol is stricter: a public business number alone is not treated as AI-call permission; the respondent must affirmatively opt in before CALL-E is used.
-
-## Tests
-
-The deterministic suite covers:
-
-- protocol-hash stability and drift detection;
-- no-call preview and masking;
-- exact result-schema contract;
-- CALL-E metadata/call/recipient binding;
-- transcript grounding of the evidence quote;
-- refusal/voicemail denominator integrity;
-- disconfirming-evidence priority;
-- frozen support-rule behavior and claim boundary;
-- invalid experiment rejection;
-- idempotency separation by protocol and recipient;
-- durable duplicate-intent prevention;
-- ambiguous provider outcome -> `outcome_unknown` with no blind redial;
-- redacted audit records and recipient fingerprinting;
-- decision replay and cross-protocol evidence rejection;
-- next-evidence counterfactual sensitivity;
-- contradiction benchmark behavior; and
-- judge-console product/safety contract.
-
-All deterministic tests run without credentials, network access, or a real phone call.
-
-## What judges can verify quickly
-
-1. Run `pytest -q`.
-2. Run the preview command and inspect the frozen task and masked recipient.
-3. Run `python benchmark.py --json` and inspect the 5-support / 3-contradiction divergence.
-4. Open `judge-console.html`, add voicemail and observe that the answered denominator stays fixed, then add three contradictions and observe `hypothesis_weakened` under the frozen 8/5/3 rule.
-5. Export an audit JSON packet, reload it locally, then alter its protocol hash and observe that the console rejects it.
-6. Inspect `audit.py::next_evidence_counterfactuals()` to see which single next evidence outcome is decision-relevant under the current state.
-7. Inspect `execute()` to verify that the published CALL-E Python SDK is the live transport boundary and that a durable reservation precedes dispatch.
-
-## Real-world validation
-
-`DOGFOOD.md` pre-registers the first SmallBet study before any CALL-E interview. The private first-wave pool contains 16 manually reviewed commercial-construction candidates. Participation is requested through a non-phone channel first; only an affirmative opt-in may become a CALL-E interview recipient. Permission-channel outcomes are reported separately from the answered interview denominator.
-
-The evaluation reports only directly measured quantities: reviewed candidates, permissions, completed interviews, nonresponse, operator minutes displaced, contradictory evidence captured, and whether additional valid answers changed the pre-registered experiment decision. It preserves negative outcomes rather than selecting only successful conversations. Current live-evidence status is kept in `DEVPOST.md`; deterministic reviewer evidence is never relabeled as a live call.
+It does **not** claim from this small study to prove population prevalence, product-market fit, statistical significance, ROI, conversion uplift, or superior commercial outcomes.
