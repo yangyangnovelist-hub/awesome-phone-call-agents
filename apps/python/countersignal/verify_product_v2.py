@@ -1,0 +1,90 @@
+"""One-command, zero-credential verification for CounterSignal's judge-visible claims."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import audit
+import benchmark
+import countersignal as core
+
+ROOT = Path(__file__).resolve().parent
+
+
+def _simulated_records(experiment: core.Experiment) -> list[dict[str, object]]:
+    protocol = core.protocol_hash(experiment)
+    buckets = ["supporting"] * 5 + ["neutral"] * 3
+    return [
+        {
+            "schema": audit.AUDIT_SCHEMA_VERSION,
+            "source": "verification_fixture",
+            "call_id": f"SIM-{index:03d}",
+            "recipient_ref": f"sha256:fixture{index:08d}",
+            "experiment_id": experiment.experiment_id,
+            "protocol_hash": protocol,
+            "bucket": bucket,
+            "confidence": 0.9,
+            "grounded": True,
+            "quote": "verification fixture",
+            "disposition": "answered",
+            "reason": "deterministic verification fixture",
+        }
+        for index, bucket in enumerate(buckets, start=1)
+    ]
+
+
+def verify() -> dict[str, object]:
+    experiment = core.parse_experiment(
+        json.loads((ROOT / "smallbet-experiment.json").read_text(encoding="utf-8"))
+    )
+    records = _simulated_records(experiment)
+    rows = {row["case"]: row for row in benchmark.run_benchmark(experiment)["rows"]}
+    divergence = rows["three_grounded_contradictions"]
+    counterfactual = {
+        row["next_bucket"]: row for row in audit.counterfactual_next_evidence(experiment, records)
+    }
+    html = (ROOT / "judge-console.html").read_text(encoding="utf-8")
+
+    checks = {
+        "frozen_rule_is_8_5_3": (
+            experiment.decision_rule.min_answered,
+            experiment.decision_rule.support_if_at_least,
+            experiment.decision_rule.weaken_if_at_least,
+        ) == (8, 5, 3),
+        "benchmark_diverges_at_three_contradictions": (
+            divergence["naive_majority"] == "positive_signal"
+            and divergence["countersignal"] == "hypothesis_weakened"
+            and divergence["diverges"] is True
+        ),
+        "one_contradiction_removes_support": (
+            counterfactual["disconfirming"]["before"] == "hypothesis_supported_under_rule"
+            and counterfactual["disconfirming"]["after"] == "inconclusive"
+        ),
+        "voicemail_does_not_change_answered_denominator": (
+            counterfactual["nonresponse"]["answered_before"]
+            == counterfactual["nonresponse"]["answered_after"]
+        ),
+        "console_is_explicitly_no_call": "NO CALL" in html,
+        "console_preserves_honest_denominator_copy": "Silence never enters the answered denominator" in html,
+        "console_has_no_network_fetch": "fetch(" not in html,
+        "console_exposes_audit_import": "Load audit JSON" in html,
+        "console_exposes_benchmark": "Contradiction stress benchmark" in html,
+    }
+    return {
+        "ok": all(checks.values()),
+        "protocol_hash": core.protocol_hash(experiment),
+        "checks": checks,
+        "benchmark_case": divergence,
+        "counterfactual_disconfirming": counterfactual["disconfirming"],
+    }
+
+
+def main() -> int:
+    result = verify()
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if result["ok"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
