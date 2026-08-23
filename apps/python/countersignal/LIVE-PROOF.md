@@ -34,21 +34,22 @@ The exact destination must match `--allow`. The production API origin remains pi
 
 By default the live proof runner writes two local artifacts:
 
-- `data/countersignal-audit.sqlite3` — append-only redacted evidence ledger;
-- `data/countersignal-audit.json` — portable `countersignal.audit.v1` packet for the browser Decision Audit Console.
+- `data/countersignal-audit.sqlite3` — append-only API over a redacted evidence ledger;
+- `data/countersignal-audit.json` — sealed portable `countersignal.audit.v1` packet for the browser Decision Audit Console.
 
 The redacted evidence record contains:
 
 - CALL-E call ID;
 - experiment ID and protocol hash;
-- one-way recipient fingerprint;
+- an opaque call-bound public reference derived from experiment/protocol/call identity, **not from the phone number**;
+- `recipient_binding_verified`, recorded only after the raw provider recipient matches the reviewed destination;
 - classification bucket;
 - confidence;
 - whether the accepted key quote was transcript-grounded;
 - the already-grounded key quote;
 - disposition and conservative classification reason.
 
-It does **not** contain the phone number or full transcript.
+It does **not** contain the phone number, a phone-derived hash, or the full transcript.
 
 The same call ID can be appended twice only when the redacted record is byte-for-byte equivalent after canonicalization. A conflicting second record for the same call ID fails closed.
 
@@ -63,13 +64,21 @@ python prove_live.py ... \
 
 The writer refuses to overwrite an existing file. Raw provider payloads may contain participant identity or transcript material and must never be committed, uploaded to the judge demo, or placed in the public audit packet.
 
-## 5. Load the result into the judge console
+## 5. Content seal and independent verification
+
+Each exported audit JSON carries `countersignal.content-seal.v1`, a deterministic SHA-256 digest over canonical packet content excluding the seal itself.
+
+Open `audit-verifier.html` and drop the JSON onto the page. The verifier recomputes the digest locally, checks the exact SmallBet experiment ID and protocol hash, and shows the evidence/decision summary. It uses no network request API.
+
+The seal detects changes to the exported packet after the digest was computed. It is deliberately **not** described as an identity signature, trusted timestamp, or tamper-proof external anchor; someone able to rewrite the whole packet can compute a new digest.
+
+## 6. Load the result into the judge console
 
 Open `judge-console.html`, choose **Load audit JSON**, and select `data/countersignal-audit.json`.
 
 The browser checks the audit schema, experiment ID, and exact protocol hash before replacing the simulated reviewer fixture. Imported data stays local to the browser; the console performs no network `fetch()`.
 
-## 6. Zero-credential verification
+## 7. Zero-credential verification
 
 Before recording the final demo:
 
@@ -79,8 +88,8 @@ python benchmark.py --json
 python -m pytest -q
 ```
 
-`verify_product_v2.py` checks the frozen 8/5/3 rule, benchmark divergence, next-evidence sensitivity, honest nonresponse denominator, no-call copy, local audit import, and the console's no-network invariant.
+`verify_product_v2.py` checks the frozen 8/5/3 rule, benchmark divergence, next-evidence sensitivity, honest nonresponse denominator, sealed-packet verification, no-call copy, local audit import, and both browser surfaces' no-network invariants.
 
 ## Claim boundary
 
-A successful proof demonstrates that a permissioned CALL-E result can be bound to the frozen experiment, converted into redacted evidence, durably accumulated, replayed, and allowed to change the pre-registered decision. It does not prove product-market fit, population prevalence, ROI, or statistical significance.
+A successful proof demonstrates that a permissioned CALL-E result can be bound to the frozen experiment, converted into redacted evidence, durably accumulated, replayed, content-sealed, independently checked, and allowed to change the pre-registered decision. It does not prove product-market fit, population prevalence, ROI, statistical significance, author identity, or an external timestamp.
