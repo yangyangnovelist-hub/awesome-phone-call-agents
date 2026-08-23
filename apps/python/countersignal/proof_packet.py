@@ -14,9 +14,9 @@ def live_audit_packet(
 ) -> dict[str, Any]:
     """Build a public audit packet and require permission proof for every live record.
 
-    The private permission receipt itself is never exported. Only the boolean
-    verification result, non-phone permission channel, and consent timestamp
-    survive into the public packet.
+    The private permission receipt itself is never exported. Interview permission
+    is not treated as publication permission: real participant quote text is
+    withheld from the public packet even after transcript grounding succeeds.
     """
     items = [dict(record) for record in records]
     packet = audit.audit_packet(experiment, items, mode="live_redacted_ledger")
@@ -42,17 +42,23 @@ def live_audit_packet(
             raise ValueError("live evidence is missing permission consent time")
         if evidence.get("recipient_binding_verified") is not True:
             raise ValueError("live evidence is not bound to the reviewed recipient")
-        if evidence.get("bucket") in {"supporting", "disconfirming", "neutral"} and evidence.get("grounded") is not True:
+        answered = evidence.get("bucket") in {"supporting", "disconfirming", "neutral"}
+        if answered and evidence.get("grounded") is not True:
             raise ValueError("answered live evidence is not transcript-grounded")
 
         evidence["permission_verified"] = True
         evidence["permission_channel"] = channel
         evidence["permission_consented_at"] = consented_at
+        evidence["grounding_verified_before_public_redaction"] = bool(evidence.get("grounded", False))
+        evidence["quote"] = ""
+        evidence["public_quote_withheld"] = True
 
     packet["live_proof_policy"] = {
         "permission_required": True,
         "recipient_binding_required": True,
         "answered_quote_grounding_required": True,
+        "interview_permission_is_publication_permission": False,
+        "live_quote_text_exported": False,
         "raw_permission_receipt_exported": False,
         "raw_phone_exported": False,
         "raw_transcript_exported": False,
