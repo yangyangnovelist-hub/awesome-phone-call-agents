@@ -52,6 +52,7 @@ def test_public_live_packet_carries_only_redacted_permission_proof():
     assert evidence["grounding_verified_before_public_redaction"] is True
     assert evidence["public_quote_withheld"] is True
     assert evidence["quote"] == ""
+    assert packet["live_proof_policy"]["minimum_live_evidence_records"] == 1
     assert packet["live_proof_policy"]["interview_permission_is_publication_permission"] is False
     assert packet["live_proof_policy"]["live_quote_text_exported"] is False
     assert packet["live_proof_policy"]["raw_permission_receipt_exported"] is False
@@ -61,6 +62,15 @@ def test_public_live_packet_carries_only_redacted_permission_proof():
     assert "+14155550123" not in encoded
     assert "I agree" not in encoded
     assert "we already use a manual workaround" not in encoded
+
+
+def test_live_packet_rejects_zero_live_records():
+    try:
+        proof_packet.live_audit_packet(experiment(), [])
+    except ValueError as exc:
+        assert "at least one CALL-E live evidence record" in str(exc)
+    else:
+        raise AssertionError("zero-record live proof must fail closed")
 
 
 def test_live_packet_rejects_missing_permission_proof():
