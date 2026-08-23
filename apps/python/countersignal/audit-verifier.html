@@ -11,7 +11,7 @@
 <body><main class="shell">
 <div class="eyebrow">CounterSignal / Local Proof Tool</div>
 <h1>Verify the audit packet yourself.</h1>
-<div class="sub">Drop a CounterSignal audit JSON. This page recomputes its SHA-256 content seal locally, checks the frozen experiment identity, affirmative permission proof, recipient binding and grounded evidence, and shows the decision/evidence summary. Nothing is uploaded and this page makes no network requests.</div>
+<div class="sub">Drop a CounterSignal audit JSON. This page recomputes its SHA-256 content seal locally, checks the frozen experiment identity, affirmative permission proof, recipient binding, grounded evidence and public quote withholding, and shows the decision/evidence summary. Nothing is uploaded and this page makes no network requests.</div>
 <section class="card"><input id="file" type="file" accept="application/json,.json" hidden><div id="drop" class="drop" tabindex="0"><b>Drop audit JSON here</b><br><span style="font-size:11px;color:#777">or click to choose a file</span></div></section>
 <section id="result" class="card result"><div id="status" class="status"></div><div class="grid"><div class="item"><span>Experiment</span><b id="experiment"></b></div><div class="item"><span>Protocol hash</span><b id="protocol"></b></div><div class="item"><span>Decision</span><b id="decision"></b></div><div class="item"><span>Answered / Evidence</span><b id="counts"></b></div></div><div id="checks" class="checks"></div><div id="digest" class="code"></div><div class="boundary"><b>Proof boundary:</b> a valid content seal shows that this exported packet matches its recorded digest. It does not authenticate the author, prove when the packet was created, verify the private consent statement itself, or make storage tamper-proof.</div></section>
 <div class="footer">Offline verifier. No fetch(), XMLHttpRequest, beacon, analytics, or remote script dependencies.</div>
@@ -20,7 +20,7 @@
 const EXPECTED_EXPERIMENT='smallbet-permit-ops-v1';
 const EXPECTED_PROTOCOL='a7229d00ec935e760d5764572b142a33a062095db0df8c5f3f32c18b88b47a56';
 const ANSWERED=new Set(['supporting','disconfirming','neutral']);
-const PERMISSION_CHANNELS=new Set(['email','sms','web_form','in_person','other_non_phone']);
+const PERMISSION_CHANNELS=new Set(['email','sms','web_form','in_person','other_non_call']);
 const file=document.getElementById('file'),drop=document.getElementById('drop');
 drop.onclick=()=>file.click();drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();file.click()}};
 ['dragenter','dragover'].forEach(name=>drop.addEventListener(name,e=>{e.preventDefault();drop.classList.add('drag')}));
@@ -43,11 +43,12 @@ async function verify(packet){
   ['Evidence array present',Array.isArray(packet.evidence)],
   ['No obvious raw phone field',!JSON.stringify(packet).includes('"phone"')&&!JSON.stringify(packet).includes('"recipients"')],
   ['Live evidence has affirmative permission',live.every(e=>e.permission_verified===true)],
-  ['Live permission uses non-phone channel',live.every(e=>PERMISSION_CHANNELS.has(e.permission_channel))],
+  ['Live permission uses non-call channel',live.every(e=>PERMISSION_CHANNELS.has(e.permission_channel))],
   ['Live permission has consent time',live.every(e=>typeof e.permission_consented_at==='string'&&e.permission_consented_at.length>0)],
   ['Live evidence recipient-bound',live.every(e=>e.recipient_binding_verified===true)],
   ['Live public refs are call-bound',live.every(e=>typeof e.recipient_ref==='string'&&e.recipient_ref.startsWith('call-bound:'))],
-  ['Answered live evidence grounded',live.every(e=>!ANSWERED.has(e.bucket)||e.grounded===true)],
+  ['Answered live evidence grounded before redaction',live.every(e=>!ANSWERED.has(e.bucket)||(e.grounded===true&&e.grounding_verified_before_public_redaction===true))],
+  ['Real participant quote text withheld',live.every(e=>e.public_quote_withheld===true&&e.quote==='')],
  ];
  const ok=checks.every(x=>x[1]);
  document.getElementById('result').classList.add('show');const status=document.getElementById('status');status.textContent=ok?'VERIFIED':'VERIFICATION FAILED';status.className='status '+(ok?'good':'bad');
