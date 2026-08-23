@@ -32,11 +32,36 @@ A supporting interview means the respondent reports that the problem occurs and 
 
 This is an operational decision rule for one discovery experiment. It is not a prevalence estimate, confidence interval, total-addressable-market estimate, or product-market-fit claim.
 
+## Why 8 / 5 / 3
+
+These thresholds encode the **cost of a bad early-stage decision**, not a claim about statistical significance.
+
+The design is intentionally conservative against confirmation bias:
+
+- **8 minimum answered** prevents one or two memorable anecdotes from becoming a terminal experiment decision. It is still small enough to fit a bounded SmallBet discovery loop.
+- **5 supporting** requires the target pattern to repeat across several answered interviews. A “supporting” record is also deliberately stronger than generic interest: the respondent must report the problem **and an existing workaround/process**.
+- **0 contradictions for provisional support** makes support fragile by design. One grounded contradiction is enough to remove the `supported` label and move the experiment to `inconclusive`; supportive anecdotes cannot simply outvote it.
+- **3 contradictions to weaken** creates a second stage rather than allowing one unusual respondent to kill the idea. The first contradiction removes confidence; repeated contradiction across three valid answered interviews is the stop/rescope signal.
+- **Minimum sample applies before weakening** so the system does not declare `hypothesis_weakened` from a tiny two- or three-call sample even if every early answer is negative.
+- **Neutral answers still count in the answered denominator**. The operator cannot hide ambiguous but valid interviews and compute thresholds only over convenient support/disconfirm cases.
+
+The resulting contradiction path is explicit:
+
+```text
+0 contradictions + enough support -> hypothesis_supported_under_rule
+1 or 2 contradictions             -> inconclusive
+3+ contradictions after 8 answers -> hypothesis_weakened
+```
+
+This is an **asymmetric loss policy** for a cheap discovery experiment: it is intentionally harder to keep the positive label once credible counterevidence appears, but it still requires repeated counterevidence before the hypothesis is actively weakened.
+
+Changing these numbers after seeing evidence would be a different experiment version. CounterSignal's contribution is not that 8/5/3 is universally optimal; it is that the decision policy is explicit, frozen, replayable, and allowed to produce an inconvenient result.
+
 ## Recipient and consent rules
 
-For this US dogfood run, a public business phone number is **not** treated as permission for an AI-voice call. Candidate businesses are contacted first through a non-phone participation invitation such as a published business email or contact channel. CALL-E is used only after the intended participant affirmatively agrees to the AI phone research interview and confirms the business number/time window to use.
+For this US dogfood run, a public business phone number is **not** treated as permission for an AI-voice call. Candidate businesses are contacted first through a non-call participation invitation such as a published business email, SMS initiated with appropriate permission, web form, in-person agreement, or another reviewed channel. CALL-E is used only after the intended participant affirmatively agrees to the AI phone research interview and confirms the business number/time window to use.
 
-This deliberately conservative study rule exists because AI-generated speech is treated as an artificial voice under the US TCPA framework, consent requirements can depend on the type of destination number and calling context, and state law may be more restrictive. CounterSignal does not attempt to infer legal permission from the fact that a number is publicly listed.
+This deliberately conservative study rule exists because AI-generated speech can trigger artificial/prerecorded voice requirements and consent requirements vary with jurisdiction, destination, and context. CounterSignal does not infer legal permission from the fact that a number is publicly listed.
 
 For every CALL-E dogfood interview:
 
@@ -95,4 +120,4 @@ A CounterSignal research opt-in is not permission to call a municipality about t
 
 ## Judge evidence packet
 
-After the run, publish a privacy-minimized aggregate containing the frozen experiment JSON/hash, permission-funnel counts, counts by interview outcome bucket, decision sequence by interview number, measured operator-time methodology, failures/nonresponses, and a few redacted evidence excerpts where publication is permitted. Do not publish phone numbers, identities, email thread IDs, full transcripts, or private recordings.
+After the run, publish a privacy-minimized aggregate containing the frozen experiment JSON/hash, permission-funnel counts, counts by interview outcome bucket, decision sequence by interview number, measured operator-time methodology, failures/nonresponses, and publication-safe aggregate evidence. Do not publish phone numbers, identities, email thread IDs, full transcripts, private recordings, or real participant quote text unless separate publication permission exists.
