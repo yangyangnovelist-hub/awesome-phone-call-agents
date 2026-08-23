@@ -1,3 +1,5 @@
+import json
+
 import countersignal as c
 import proof_packet
 
@@ -48,8 +50,11 @@ def test_public_live_packet_carries_only_redacted_permission_proof():
     assert evidence["permission_channel"] == "email"
     assert evidence["permission_consented_at"].endswith("+08:00")
     assert packet["live_proof_policy"]["raw_permission_receipt_exported"] is False
-    assert "phone" not in str(packet).lower()
-    assert "I agree" not in str(packet)
+    assert packet["live_proof_policy"]["raw_phone_exported"] is False
+    encoded = json.dumps(packet)
+    assert '"phone":' not in encoded
+    assert "+14155550123" not in encoded
+    assert "I agree" not in encoded
 
 
 def test_live_packet_rejects_missing_permission_proof():
