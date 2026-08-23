@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CounterSignal — Audit Verifier</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#191918;background:#f3f2ee;--line:#ddd9cf;--muted:#6f6b63;--good:#176b47;--bad:#982f2b}*{box-sizing:border-box}body{margin:0}.shell{max-width:920px;margin:auto;padding:32px}.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:850;color:var(--muted)}h1{font-size:42px;letter-spacing:-.045em;line-height:1.03;margin:8px 0 10px}.sub{color:#56524c;line-height:1.55;max-width:760px}.card{background:#fff;border:1px solid var(--line);border-radius:17px;padding:18px;margin-top:18px}.drop{border:1.5px dashed #aaa59a;border-radius:14px;padding:34px;text-align:center;background:#faf9f6;cursor:pointer}.drop.drag{background:#f0eee8;border-color:#222}.result{display:none}.result.show{display:block}.status{font-size:28px;font-weight:900;letter-spacing:-.03em}.status.good{color:var(--good)}.status.bad{color:var(--bad)}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:14px}.item{border:1px solid var(--line);border-radius:11px;padding:11px}.item span{display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.item b{display:block;font-size:13px;margin-top:5px;word-break:break-all}.checks{display:grid;gap:7px;margin-top:14px}.check{display:flex;justify-content:space-between;gap:12px;border-top:1px solid #ebe8df;padding:9px 1px;font-size:12px}.ok{color:var(--good);font-weight:850}.fail{color:var(--bad);font-weight:850}.code{font:10px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;background:#191918;color:#eee;border-radius:11px;padding:12px;overflow:auto;white-space:pre-wrap;margin-top:12px}.boundary{border-left:3px solid #222;padding-left:11px;font-size:11px;line-height:1.55;color:#4c4943;margin-top:14px}.footer{font-size:10px;color:#77736b;margin-top:18px}@media(max-width:620px){.shell{padding:18px}h1{font-size:34px}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body><main class="shell">
+<div class="eyebrow">CounterSignal / Local Proof Tool</div>
+<h1>Verify the audit packet yourself.</h1>
+<div class="sub">Drop a CounterSignal audit JSON. This page recomputes its SHA-256 content seal locally and requires a non-empty, live-only CALL-E evidence set before checking permission, recipient binding, grounding and public quote withholding. Nothing is uploaded and this page makes no network requests.</div>
+<section class="card"><input id="file" type="file" accept="application/json,.json" hidden><div id="drop" class="drop" tabindex="0"><b>Drop audit JSON here</b><br><span style="font-size:11px;color:#777">or click to choose a file</span></div></section>
+<section id="result" class="card result"><div id="status" class="status"></div><div class="grid"><div class="item"><span>Experiment</span><b id="experiment"></b></div><div class="item"><span>Protocol hash</span><b id="protocol"></b></div><div class="item"><span>Decision</span><b id="decision"></b></div><div class="item"><span>Answered / Evidence</span><b id="counts"></b></div></div><div id="checks" class="checks"></div><div id="digest" class="code"></div><div class="boundary"><b>Proof boundary:</b> a valid content seal shows that this exported packet matches its recorded digest. It does not authenticate the author, prove when the packet was created, verify the private consent statement itself, or make storage tamper-proof.</div></section>
+<div class="footer">Offline verifier. No fetch(), XMLHttpRequest, beacon, analytics, or remote script dependencies.</div>
+</main>
+<script>
+const EXPECTED_EXPERIMENT='smallbet-permit-ops-v1';
+const EXPECTED_PROTOCOL='a7229d00ec935e760d5764572b142a33a062095db0df8c5f3f32c18b88b47a56';
+const ANSWERED=new Set(['supporting','disconfirming','neutral']);
+const PERMISSION_CHANNELS=new Set(['email','sms','web_form','in_person','other_non_phone']);
+const file=document.getElementById('file'),drop=document.getElementById('drop');
+drop.onclick=()=>file.click();drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();file.click()}};
+['dragenter','dragover'].forEach(name=>drop.addEventListener(name,e=>{e.preventDefault();drop.classList.add('drag')}));
+['dragleave','drop'].forEach(name=>drop.addEventListener(name,e=>{e.preventDefault();drop.classList.remove('drag')}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)read(f)});file.onchange=e=>{const f=e.target.files[0];if(f)read(f)};
+function canonical(v){if(v===null)return'null';if(Array.isArray(v))return'['+v.map(canonical).join(',')+']';if(typeof v==='object')return'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonical(v[k])).join(',')+'}';return JSON.stringify(v)}
+function withoutSeal(packet){const o={};Object.keys(packet).forEach(k=>{if(k!=='integrity_seal')o[k]=packet[k]});return o}
+async function sha256Hex(text){const bytes=new TextEncoder().encode(text),buf=await crypto.subtle.digest('SHA-256',bytes);return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('')}
+async function verify(packet){
+ const seal=packet&&packet.integrity_seal,observed=seal&&seal.digest;
+ const calculated=await sha256Hex(canonical(withoutSeal(packet)));
+ const evidence=Array.isArray(packet.evidence)?packet.evidence:[];
+ const live=evidence.filter(e=>e&&e.source==='calle_live');
+ const policy=packet&&packet.live_proof_policy||{};
+ const checks=[
+  ['Audit schema',packet.schema==='countersignal.audit.v1'],
+  ['Live proof mode',packet.mode==='live_redacted_ledger'],
+  ['Experiment identity',packet.experiment_id===EXPECTED_EXPERIMENT],
+  ['Frozen protocol hash',packet.protocol_hash===EXPECTED_PROTOCOL],
+  ['Content-seal schema',!!seal&&seal.schema==='countersignal.content-seal.v1'&&seal.algorithm==='sha256'],
+  ['SHA-256 digest matches',typeof observed==='string'&&observed===calculated],
+  ['Evidence array present',Array.isArray(packet.evidence)],
+  ['At least one CALL-E live evidence record',live.length>0],
+  ['Every evidence record is CALL-E live',live.length===evidence.length],
+  ['Live-proof policy requires evidence',policy.minimum_live_evidence_records===1],
+  ['Live-proof policy forbids mixed evidence',policy.live_evidence_only===true],
+  ['No obvious raw phone field',!JSON.stringify(packet).includes('"phone"')&&!JSON.stringify(packet).includes('"recipients"')],
+  ['Live evidence has affirmative permission',live.every(e=>e.permission_verified===true)],
+  ['Live permission uses non-call channel',live.every(e=>PERMISSION_CHANNELS.has(e.permission_channel))],
+  ['Live permission has consent time',live.every(e=>typeof e.permission_consented_at==='string'&&e.permission_consented_at.length>0)],
+  ['Live evidence recipient-bound',live.every(e=>e.recipient_binding_verified===true)],
+  ['Live public refs are call-bound',live.every(e=>typeof e.recipient_ref==='string'&&e.recipient_ref.startsWith('call-bound:'))],
+  ['Answered live evidence grounded before redaction',live.every(e=>!ANSWERED.has(e.bucket)||(e.grounded===true&&e.grounding_verified_before_public_redaction===true))],
+  ['Real participant quote text withheld',live.every(e=>e.public_quote_withheld===true&&e.quote==='')],
+ ];
+ const ok=checks.every(x=>x[1]);
+ document.getElementById('result').classList.add('show');const status=document.getElementById('status');status.textContent=ok?'VERIFIED':'VERIFICATION FAILED';status.className='status '+(ok?'good':'bad');
+ document.getElementById('experiment').textContent=packet.experiment_id||'missing';document.getElementById('protocol').textContent=packet.protocol_hash||'missing';document.getElementById('decision').textContent=packet.decision||'missing';document.getElementById('counts').textContent=`${packet.answered_denominator??'?'} answered / ${evidence.length} evidence records`;
+ document.getElementById('checks').innerHTML=checks.map(x=>`<div class="check"><span>${x[0]}</span><span class="${x[1]?'ok':'fail'}">${x[1]?'PASS':'FAIL'}</span></div>`).join('');
+ document.getElementById('digest').textContent=`recorded  ${observed||'missing'}\ncomputed  ${calculated}`;
+}
+function read(f){const r=new FileReader();r.onload=async()=>{try{await verify(JSON.parse(r.result))}catch(err){document.getElementById('result').classList.add('show');const s=document.getElementById('status');s.textContent='INVALID JSON / PACKET';s.className='status bad';document.getElementById('checks').innerHTML=`<div class="check"><span>Parser</span><span class="fail">FAIL</span></div>`;document.getElementById('digest').textContent=String(err)}};r.readAsText(f)}
+</script></body></html>

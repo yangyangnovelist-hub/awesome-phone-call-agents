@@ -1,0 +1,211 @@
+"""Privacy-safe CounterSignal proof runner.
+
+Preview is the default. A real call requires explicit live gates plus a
+structured affirmative permission receipt. The transport-independent proof
+orchestrator is separately testable: accepted CALL-E result -> bound evidence ->
+privacy-minimized ledger -> live-only public packet -> content seal.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Any
+
+import audit
+import countersignal as core
+import permission as permission_gate
+import proof_packet
+import seal
+
+
+def _load(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _write_new(path: Path, value: Any) -> None:
+    if path.exists():
+        raise ValueError(f"refusing to overwrite existing file: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def run_after_live_gates(
+    experiment: core.Experiment,
+    recipient: core.Recipient,
+    permission: dict[str, Any],
+    calls: core.CallsAPI,
+    reservation_ledger: core.ReservationLedger,
+    audit_ledger: audit.AuditLedger,
+    *,
+    timeout_seconds: int = 600,
+) -> dict[str, Any]:
+    """Execute and assemble one proof after outer authorization gates have passed.
+
+    The CLI validates the private receipt, exact allowlist, live enable flag and
+    credential origin before providing the real CALL-E transport. Keeping the
+    post-gate orchestration in one function makes the full evidence path
+    deterministic and testable with an in-memory/fake CallsAPI.
+    """
+    if permission.get("permission_verified") is not True:
+        raise ValueError("validated affirmative permission is required")
+    if permission.get("experiment_id") != experiment.experiment_id:
+        raise ValueError("validated permission belongs to a different experiment")
+
+    payload = core.execute(
+        experiment,
+        recipient,
+        calls,
+        reservation_ledger,
+        timeout_seconds,
+    )
+    provider_result = payload["provider_result"]
+    call_id = payload["call_id"]
+
+    record = audit.evidence_record(
+        experiment, recipient, provider_result, expected_call_id=call_id
+    )
+    record["permission_verified"] = True
+    record["permission_channel"] = permission["channel"]
+    record["permission_consented_at"] = permission["consented_at"]
+
+    audit_ledger.append(experiment, record)
+    stored_records = audit_ledger.records(experiment)
+    stored_record = next(
+        (item for item in stored_records if item.get("call_id") == call_id), None
+    )
+    if stored_record is None:
+        raise RuntimeError("accepted CALL-E evidence was not present in the audit ledger")
+
+    public_packet = proof_packet.live_audit_packet(experiment, stored_records)
+    packet = seal.seal_packet(public_packet)
+    return {
+        "call_id": call_id,
+        "provider_result": provider_result,
+        "record": stored_record,
+        "packet": packet,
+    }
+
+
+def safe_live_summary(
+    experiment: core.Experiment,
+    record: dict[str, Any],
+    packet: dict[str, Any],
+    *,
+    private_result_persisted: bool,
+    audit_out: Path,
+) -> dict[str, Any]:
+    integrity = packet.get("integrity_seal", {})
+    return {
+        "mode": "live_redacted_proof",
+        "call_id": record.get("call_id"),
+        "experiment_id": experiment.experiment_id,
+        "protocol_hash": core.protocol_hash(experiment),
+        "permission_verified": bool(record.get("permission_verified", False)),
+        "permission_channel": record.get("permission_channel"),
+        "permission_consented_at": record.get("permission_consented_at"),
+        "bucket": record["bucket"],
+        "confidence": record.get("confidence", 0.0),
+        "grounded": bool(record.get("grounded", False)),
+        "recipient_binding_verified": bool(record.get("recipient_binding_verified", False)),
+        "recipient_ref": record.get("recipient_ref"),
+        "quote_withheld_at_rest": bool(record.get("quote_withheld_at_rest", False)),
+        "decision": packet["decision"],
+        "answered_denominator": packet["answered_denominator"],
+        "counts": packet["counts"],
+        "audit_packet": str(audit_out),
+        "audit_digest_sha256": integrity.get("digest"),
+        "private_provider_result_persisted": private_result_persisted,
+        "privacy_boundary": "stdout, default ledger, and public packet contain no phone number, full transcript, or real quote text",
+        "seal_boundary": "digest detects packet changes but is not an identity signature or external timestamp",
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--experiment", type=Path, required=True)
+    parser.add_argument("--recipient", type=Path, required=True)
+    parser.add_argument("--permission-receipt", type=Path)
+    parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--confirm-one-reviewed-recipient", action="store_true")
+    parser.add_argument("--allow", action="append", default=[])
+    parser.add_argument("--timeout-seconds", type=int, default=600)
+    parser.add_argument("--reservation-database", type=Path, default=Path("data/countersignal.sqlite3"))
+    parser.add_argument("--audit-database", type=Path, default=Path("data/countersignal-audit.sqlite3"))
+    parser.add_argument("--audit-out", type=Path, default=Path("data/countersignal-audit.json"))
+    parser.add_argument("--private-result-out", type=Path)
+    args = parser.parse_args(argv)
+
+    try:
+        experiment = core.parse_experiment(_load(args.experiment))
+        recipient = core.parse_recipient(_load(args.recipient))
+        if not args.execute:
+            preview = core.preview(experiment, recipient)
+            preview["recommended_live_command"] = (
+                "prove_live.py --execute with --permission-receipt and explicit reviewed-recipient gates"
+            )
+            print(json.dumps(preview, ensure_ascii=False, indent=2))
+            return 0
+
+        if args.permission_receipt is None:
+            raise ValueError("--execute requires --permission-receipt")
+        permission = permission_gate.validate_permission_receipt(
+            experiment, recipient, _load(args.permission_receipt)
+        )
+        if not args.confirm_one_reviewed_recipient:
+            raise ValueError("--execute requires --confirm-one-reviewed-recipient")
+        if recipient.phone not in set(args.allow):
+            raise ValueError("--execute requires the exact recipient phone in --allow")
+        if os.environ.get("CALLE_LIVE_CALLS_ENABLED", "").lower() != "true":
+            raise ValueError("--execute requires CALLE_LIVE_CALLS_ENABLED=true")
+
+        base_url = core.validate_base_url(os.environ.get("CALLE_BASE_URL", core.DEFAULT_BASE_URL))
+        key = core.api_key_for_base_url(base_url)
+        from calle import CalleClient
+
+        with CalleClient(api_key=key, base_url=base_url) as client:
+            proof = run_after_live_gates(
+                experiment,
+                recipient,
+                permission,
+                client.calls,
+                core.ReservationLedger(args.reservation_database),
+                audit.AuditLedger(args.audit_database),
+                timeout_seconds=args.timeout_seconds,
+            )
+
+        packet = proof["packet"]
+        args.audit_out.parent.mkdir(parents=True, exist_ok=True)
+        args.audit_out.write_text(
+            json.dumps(packet, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+
+        private_persisted = False
+        if args.private_result_out is not None:
+            _write_new(args.private_result_out, proof["provider_result"])
+            private_persisted = True
+
+        print(
+            json.dumps(
+                safe_live_summary(
+                    experiment,
+                    proof["record"],
+                    packet,
+                    private_result_persisted=private_persisted,
+                    audit_out=args.audit_out,
+                ),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+        sys.stderr.write(f"error: {exc}\n")
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

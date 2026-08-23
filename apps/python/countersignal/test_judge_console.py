@@ -16,6 +16,12 @@ def test_judge_console_matches_frozen_smallbet_protocol():
     assert "<b>8</b><span>min answered</span>" in html
     assert "<b>5</b><span>support needed</span>" in html
     assert "<b>3</b><span>contradictions weaken</span>" in html
-    assert "if(answered>=8)" in html
+
+    # Pin the actual decision semantics without requiring one equivalent JS spelling.
+    assert "a=c.supporting+c.disconfirming+c.neutral" in html
+    assert "if(a<8)" in html
     assert "c.disconfirming>=3" in html
     assert "c.supporting>=5&&c.disconfirming===0" in html
+    assert "d:'collect_more'" in html
+    assert "d:'hypothesis_weakened'" in html
+    assert "d:'hypothesis_supported_under_rule'" in html
