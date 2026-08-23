@@ -62,7 +62,7 @@ def safe_live_summary(
         "audit_packet": str(audit_out),
         "audit_digest_sha256": integrity.get("digest"),
         "private_provider_result_persisted": private_result_persisted,
-        "privacy_boundary": "stdout contains no phone number or full transcript",
+        "privacy_boundary": "stdout, default ledger, and public packet contain no phone number, full transcript, or real quote text",
         "seal_boundary": "digest detects packet changes but is not an identity signature or external timestamp",
     }
 
@@ -123,6 +123,9 @@ def main(argv: list[str] | None = None) -> int:
         record = audit.evidence_record(
             experiment, recipient, provider_result, expected_call_id=call_id
         )
+        record["grounding_verified_before_redaction"] = bool(record.get("grounded", False))
+        record["quote"] = ""
+        record["quote_withheld_from_ledger"] = True
         record["permission_verified"] = True
         record["permission_channel"] = permission["channel"]
         record["permission_consented_at"] = permission["consented_at"]
