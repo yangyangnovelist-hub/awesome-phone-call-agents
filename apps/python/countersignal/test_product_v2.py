@@ -96,8 +96,9 @@ def test_live_evidence_record_redacts_phone_and_preserves_provenance():
     assert record["call_id"] == "call_123"
     assert record["source"] == "calle_live"
     assert record["grounded"] is True
+    assert record["recipient_binding_verified"] is True
     assert RECIPIENT_DATA["phone"] not in str(record)
-    assert record["recipient_ref"].startswith("sha256:")
+    assert record["recipient_ref"].startswith("call-bound:")
 
 
 def test_nonresponse_audit_record_does_not_require_a_quote():
@@ -107,6 +108,7 @@ def test_nonresponse_audit_record_does_not_require_a_quote():
     assert record["bucket"] == "nonresponse"
     assert record["answered"] is False
     assert record["grounded"] is False
+    assert record["recipient_binding_verified"] is True
     assert record["quote"] == ""
 
 
