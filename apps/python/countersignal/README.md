@@ -26,6 +26,43 @@ The app therefore makes five things load-bearing:
 4. **Honest denominators.** Refusal, voicemail, unreachable, and invalid results do not become answered interviews.
 5. **Evidence binding.** A result is useful only when it belongs to the exact experiment, protocol, CALL-E call, and recipient, and its key quote is grounded in recipient-side transcript text.
 
+## Decision Audit Console
+
+The browser reviewer experience turns those rules into visible product behavior rather than documentation claims. Open `judge-console.html` to:
+
+- replay the exact evidence item that changes the experiment state;
+- inspect decision fragility — how many grounded contradictions would remove support or weaken the hypothesis;
+- keep contradictory evidence in a dedicated adversarial queue instead of averaging it away;
+- inspect per-record provenance and confidence;
+- export a redacted `countersignal.audit.v1` packet; and
+- load a redacted live audit packet locally, with exact experiment/protocol checks and no upload.
+
+Preset evidence is deterministic and visibly labeled simulated. A real CALL-E record can enter the console only after the Python evidence gate has classified and redacted it.
+
+## Reproducible contradiction benchmark
+
+`benchmark.py` compares CounterSignal's frozen policy against a deliberately simple, fully specified majority heuristic over the same evidence. This is not a benchmark against a named commercial AI product.
+
+Under the pre-registered SmallBet 8/5/3 rule, five supporting interviews and three grounded contradictions produce:
+
+- naive majority: `positive_signal` (5 support > 3 contradictions)
+- CounterSignal: `hypothesis_weakened` (the pre-registered contradiction threshold is met)
+
+Run:
+
+```bash
+python benchmark.py
+python benchmark.py --json
+```
+
+See `BENCHMARK.md` for the complete deterministic cases and claim boundary.
+
+## Portable evidence audit
+
+`audit.py` converts a provider result that has already passed CounterSignal's classification gates into a privacy-minimizing audit record. It preserves the CALL-E call ID, experiment and protocol identity, confidence, grounded quote, classification, and reason while replacing the destination phone number with a stable one-way recipient fingerprint.
+
+An audit packet rejects evidence carrying a different experiment ID or protocol hash. This makes cross-study evidence mixing an explicit error instead of an invisible dashboard mistake.
+
 ## Distinction from existing CALL-E examples
 
 The repository already contains sales follow-up/booking and a standardized survey runner. CounterSignal has a different objective and decision boundary:
@@ -69,6 +106,9 @@ reviewed recipient -> no-call preview -> explicit live gates -> CALL-E
                     |                |                                 |
                     v                v                                 v
               collect_more   hypothesis_weakened   hypothesis_supported_under_rule / inconclusive
+                                                      |
+                                                      v
+                                        redacted audit + decision replay
 ```
 
 The decision is an **operational experiment rule**, not a population-level statistical estimate and not a claim of product-market fit.
@@ -179,18 +219,22 @@ The deterministic suite covers:
 - invalid experiment rejection;
 - idempotency separation by protocol and recipient;
 - durable duplicate-intent prevention;
-- ambiguous provider outcome -> `outcome_unknown` with no blind redial; and
-- judge-console alignment with the real pre-registered SmallBet protocol.
+- ambiguous provider outcome -> `outcome_unknown` with no blind redial;
+- redacted audit records and recipient fingerprinting;
+- decision replay and cross-protocol evidence rejection;
+- contradiction benchmark behavior; and
+- judge-console product/safety contract.
 
-All tests run without credentials, network access, or a real phone call.
+All deterministic tests run without credentials, network access, or a real phone call.
 
 ## What judges can verify quickly
 
 1. Run `pytest -q`.
 2. Run the preview command and inspect the frozen task and masked recipient.
-3. Change one question and observe the protocol hash/idempotency identity change.
+3. Run `python benchmark.py --json` and inspect the 5-support / 3-contradiction divergence.
 4. Open `judge-console.html`, add voicemail and observe that the answered denominator stays fixed, then add three contradictions and observe `hypothesis_weakened` under the frozen 8/5/3 rule.
-5. Inspect `execute()` to verify that the published CALL-E Python SDK is the live transport boundary and that a durable reservation precedes dispatch.
+5. Export an audit JSON packet, reload it locally, then alter its protocol hash and observe that the console rejects it.
+6. Inspect `execute()` to verify that the published CALL-E Python SDK is the live transport boundary and that a durable reservation precedes dispatch.
 
 ## Real-world validation
 
