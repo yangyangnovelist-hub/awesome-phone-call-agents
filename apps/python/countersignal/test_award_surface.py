@@ -39,6 +39,7 @@ def test_award_surface_verifies_live_proof_fail_closed_and_locally():
     html = _html()
     script = _script(html)
     assert "crypto.subtle.digest" in script
+    assert "live.length>0" in script
     assert "permission_verified===true" in script
     assert "CHANNELS.has(e.permission_channel)" in script
     assert "recipient_binding_verified===true" in script
