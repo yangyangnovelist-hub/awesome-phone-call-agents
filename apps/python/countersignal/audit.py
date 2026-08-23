@@ -14,6 +14,7 @@ import countersignal as core
 
 AUDIT_SCHEMA_VERSION = "countersignal.audit.v1"
 ALLOWED_BUCKETS = {"supporting", "disconfirming", "neutral", "nonresponse", "invalid"}
+NEXT_EVIDENCE_BUCKETS = ("supporting", "neutral", "disconfirming", "nonresponse", "invalid")
 
 
 def _recipient_fingerprint(phone: str) -> str:
@@ -120,6 +121,34 @@ def decision_fragility(
     }
 
 
+def next_evidence_counterfactuals(
+    experiment: core.Experiment, records: Iterable[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Show how one additional classified outcome would affect the current decision.
+
+    This is a policy counterfactual, not a prediction of what the next respondent will say.
+    It helps an operator distinguish evidence that can change the current decision from
+    evidence that only increases activity counts.
+    """
+    items = _normalized_records(records)
+    current_buckets = [record["bucket"] for record in items]
+    current = core.experiment_decision(experiment, current_buckets)
+    scenarios: list[dict[str, Any]] = []
+    for bucket in NEXT_EVIDENCE_BUCKETS:
+        after = core.experiment_decision(experiment, [*current_buckets, bucket])
+        scenarios.append(
+            {
+                "next_bucket": bucket,
+                "before": current["decision"],
+                "after": after["decision"],
+                "changes_decision": after["decision"] != current["decision"],
+                "answered_denominator_after": after["answered_denominator"],
+                "counts_after": after["counts"],
+            }
+        )
+    return scenarios
+
+
 def audit_packet(
     experiment: core.Experiment,
     records: Iterable[dict[str, Any]],
@@ -148,6 +177,7 @@ def audit_packet(
         "answered_denominator": decision["answered_denominator"],
         "counts": decision["counts"],
         "fragility": decision_fragility(experiment, items),
+        "next_evidence_counterfactuals": next_evidence_counterfactuals(experiment, items),
         "replay": decision_replay(experiment, items),
         "claim_boundary": decision["claim_boundary"],
         "evidence": [
