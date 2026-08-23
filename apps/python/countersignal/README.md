@@ -61,7 +61,7 @@ See `BENCHMARK.md` for the complete deterministic cases and claim boundary.
 
 `audit.py` converts a provider result that has already passed CounterSignal's classification gates into a privacy-minimizing audit record. It preserves the CALL-E call ID, experiment and protocol identity, confidence, grounded quote, classification, and reason while replacing the destination phone number with a stable one-way recipient fingerprint.
 
-An audit packet rejects evidence carrying a different experiment ID or protocol hash. This makes cross-study evidence mixing an explicit error instead of an invisible dashboard mistake.
+An audit packet rejects evidence carrying a different experiment ID or protocol hash. It also includes **next-evidence counterfactuals**: for each possible next classified outcome, CounterSignal reports whether that one additional result would change the current decision and whether it would enter the answered denominator. This is a policy sensitivity tool, not a prediction of what the next respondent will say.
 
 ## Distinction from existing CALL-E examples
 
@@ -108,7 +108,7 @@ reviewed recipient -> no-call preview -> explicit live gates -> CALL-E
               collect_more   hypothesis_weakened   hypothesis_supported_under_rule / inconclusive
                                                       |
                                                       v
-                                        redacted audit + decision replay
+                             redacted audit + replay + next-evidence sensitivity
 ```
 
 The decision is an **operational experiment rule**, not a population-level statistical estimate and not a claim of product-market fit.
@@ -222,6 +222,7 @@ The deterministic suite covers:
 - ambiguous provider outcome -> `outcome_unknown` with no blind redial;
 - redacted audit records and recipient fingerprinting;
 - decision replay and cross-protocol evidence rejection;
+- next-evidence counterfactual sensitivity;
 - contradiction benchmark behavior; and
 - judge-console product/safety contract.
 
@@ -234,7 +235,8 @@ All deterministic tests run without credentials, network access, or a real phone
 3. Run `python benchmark.py --json` and inspect the 5-support / 3-contradiction divergence.
 4. Open `judge-console.html`, add voicemail and observe that the answered denominator stays fixed, then add three contradictions and observe `hypothesis_weakened` under the frozen 8/5/3 rule.
 5. Export an audit JSON packet, reload it locally, then alter its protocol hash and observe that the console rejects it.
-6. Inspect `execute()` to verify that the published CALL-E Python SDK is the live transport boundary and that a durable reservation precedes dispatch.
+6. Inspect `audit.py::next_evidence_counterfactuals()` to see which single next evidence outcome is decision-relevant under the current state.
+7. Inspect `execute()` to verify that the published CALL-E Python SDK is the live transport boundary and that a durable reservation precedes dispatch.
 
 ## Real-world validation
 
