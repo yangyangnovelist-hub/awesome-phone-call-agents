@@ -14,7 +14,7 @@ Preview masks the destination, shows the frozen protocol identity and CALL-E tas
 
 ## 2. Record affirmative permission before any proof call
 
-A reviewed phone number is not enough. The live proof runner requires a private local permission receipt from a **non-phone** channel before it will cross the CALL-E boundary.
+A reviewed phone number is not enough. The live proof runner requires a private local permission receipt from a **non-call** channel before it will cross the CALL-E boundary.
 
 Example `permission.json`:
 
@@ -29,7 +29,7 @@ Example `permission.json`:
 }
 ```
 
-Accepted permission channels are `email`, `sms`, `web_form`, `in_person`, and `other_non_phone`. A phone call cannot be used to establish permission for the proof call itself. The consent timestamp must include a timezone.
+Accepted permission channels are `email`, `sms`, `web_form`, `in_person`, and `other_non_call`. A voice call cannot be used to establish permission for the proof call itself. The consent timestamp must include a timezone.
 
 The receipt is private because it contains the destination and consent statement. It must not be committed or uploaded to the public demo.
 
@@ -48,7 +48,7 @@ python prove_live.py \
   --allow +15551234567
 ```
 
-Before importing the CALL-E SDK or reading the production API key, the proof runner verifies that the receipt has `ai_interview_opt_in=true`, matches the exact experiment and reviewed recipient, uses an allowed non-phone channel, and contains a timezone-aware consent time. The exact destination must also match `--allow`.
+Before importing the CALL-E SDK or reading the production API key, the proof runner verifies that the receipt has `ai_interview_opt_in=true`, matches the exact experiment and reviewed recipient, uses an allowed non-call channel, and contains a timezone-aware consent time. The exact destination must also match `--allow`.
 
 ## 4. What is persisted publicly
 
@@ -57,23 +57,24 @@ By default the live proof runner writes two local artifacts:
 - `data/countersignal-audit.sqlite3` — append-only API over a redacted evidence ledger;
 - `data/countersignal-audit.json` — sealed portable `countersignal.audit.v1` packet for the browser Decision Audit Console.
 
-The redacted evidence record contains:
+The public evidence record contains:
 
 - CALL-E call ID;
 - experiment ID and protocol hash;
 - an opaque call-bound public reference derived from experiment/protocol/call identity, **not from the phone number**;
-- `permission_verified=true`, the non-phone permission channel, and consent timestamp — but not the private receipt statement or destination;
+- `permission_verified=true`, the non-call permission channel, and consent timestamp — but not the private receipt statement or destination;
 - `recipient_binding_verified`, recorded only after the raw provider recipient matches the reviewed destination;
 - classification bucket and confidence;
-- whether the accepted key quote was transcript-grounded;
-- the already-grounded key quote;
+- whether grounding against recipient-side transcript text succeeded; and
 - disposition and conservative classification reason.
 
-It does **not** contain the phone number, a phone-derived hash, the private permission statement, or the full transcript.
+**Real participant quote text is withheld from the public proof by default.** Interview permission is not treated as permission to publish a transcript excerpt. The local redacted evidence ledger may retain the already-grounded quote for operator review, but `proof_packet.py` clears it before generating the public sealed packet.
 
-Every `calle_live` record in the public proof packet must have affirmative permission proof, exact recipient binding, and — when it enters the answered denominator — a grounded transcript quote. Missing any of those conditions fails closed.
+The public packet therefore contains neither the phone number, a phone-derived hash, the private permission statement, the full transcript, nor real quote text.
 
-The same call ID can be appended twice only when the redacted record is byte-for-byte equivalent after canonicalization. A conflicting second record for the same call ID fails closed.
+Every `calle_live` record in the public proof packet must have affirmative permission proof, exact recipient binding, and — when it enters the answered denominator — successful transcript grounding before public redaction. Missing any of those conditions fails closed.
+
+The same call ID can be appended twice only when the redacted ledger record is canonically identical. A conflicting second record for the same call ID fails closed.
 
 ## 5. Raw provider result is opt-in only
 
@@ -94,10 +95,10 @@ Open `audit-verifier.html` and drop the JSON onto the page. The verifier recompu
 
 - the exact SmallBet experiment ID and protocol hash;
 - affirmative permission proof on every live record;
-- a supported non-phone permission channel and consent timestamp;
+- a supported non-call permission channel and consent timestamp;
 - exact recipient-binding verification;
 - call-bound rather than phone-derived public references;
-- transcript grounding for every answered live record; and
+- successful grounding for every answered live record before quote withholding; and
 - absence of obvious raw phone/recipient fields.
 
 The verifier uses no network request API.
@@ -120,7 +121,7 @@ python benchmark.py --json
 python -m pytest -q
 ```
 
-The test suite separately exercises permission-receipt validation, missing-permission failure before live configuration, public proof projection, binding/grounding requirements, content sealing, benchmark divergence, and browser no-network invariants.
+The test suite separately exercises permission-receipt validation, missing-permission failure before live configuration, public proof projection, quote withholding, binding/grounding requirements, content sealing, benchmark divergence, and browser no-network invariants.
 
 ## Claim boundary
 
