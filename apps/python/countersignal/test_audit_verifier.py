@@ -14,7 +14,9 @@ def test_audit_verifier_is_local_and_protocol_pinned():
     assert "packet.schema==='countersignal.audit.v1'" in script
     assert "packet.mode==='live_redacted_ledger'" in script
     assert "live.length>0" in script
+    assert "live.length===evidence.length" in script
     assert "policy.minimum_live_evidence_records===1" in script
+    assert "policy.live_evidence_only===true" in script
     assert "permission_verified===true" in script
     assert "other_non_phone" in script
     assert "PERMISSION_CHANNELS.has(e.permission_channel)" in script
