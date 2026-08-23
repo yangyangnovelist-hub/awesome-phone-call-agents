@@ -112,13 +112,24 @@ def verify() -> dict[str, object]:
             "Customer research that can prove you wrong." in award
             and "Not a prettier summary. A different epistemic policy." in award
             and "Try to kill the hypothesis." in award
+            and "Why 8 / 5 / 3" in award
+            and "An asymmetric loss policy, not a significance test." in award
         ),
         "award_surface_verifies_live_proof_locally": (
             "crypto.subtle.digest" in award_script
+            and "p.mode==='live_redacted_ledger'" in award_script
             and "live.length>0" in award_script
+            and "live.length===evidence.length" in award_script
+            and "policy.minimum_live_evidence_records===1" in award_script
+            and "policy.live_evidence_only===true" in award_script
             and "permission_verified===true" in award_script
+            and "CHANNELS.has(e.permission_channel)" in award_script
+            and "permission_consented_at" in award_script
             and "recipient_binding_verified===true" in award_script
-            and "live.every(e=>!e.quote)" in award_script
+            and "recipient_ref.startsWith('call-bound:')" in award_script
+            and "grounding_verified_before_public_redaction===true" in award_script
+            and "public_quote_withheld===true" in award_script
+            and "e.quote===''" in award_script
             and _has_no_network_api(award_script)
         ),
     }
