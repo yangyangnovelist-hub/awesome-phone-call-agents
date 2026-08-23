@@ -91,10 +91,12 @@ def verify() -> dict[str, object]:
         "console_exposes_audit_import": "Load audit JSON" in console,
         "console_exposes_benchmark": "Contradiction stress benchmark" in console,
         "verifier_recomputes_sha256": "crypto.subtle.digest" in verifier_script,
-        "verifier_requires_nonempty_live_evidence": (
+        "verifier_requires_live_only_evidence": (
             "live.length>0" in verifier_script
+            and "live.length===evidence.length" in verifier_script
             and "packet.mode==='live_redacted_ledger'" in verifier_script
             and "policy.minimum_live_evidence_records===1" in verifier_script
+            and "policy.live_evidence_only===true" in verifier_script
         ),
         "verifier_has_no_network_api": _has_no_network_api(verifier_script),
         "award_surface_has_decision_integrity_story": (
