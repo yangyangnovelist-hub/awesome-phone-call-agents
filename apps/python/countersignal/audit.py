@@ -1,9 +1,10 @@
 """Audit, replay, and durable redacted-evidence helpers for CounterSignal.
 
-The audit layer is deliberately privacy-minimizing: it emits a stable recipient
-fingerprint instead of a phone number and includes only the transcript quote
-already accepted by CounterSignal's grounding gate. The durable ledger stores
-those redacted records, never raw provider payloads or full transcripts.
+The audit layer is deliberately privacy-minimizing: public evidence contains no
+phone-derived identifier. Recipient binding is checked against the raw provider
+result before redaction; the exported reference is derived only from the public
+experiment/protocol/call identity. The durable ledger stores those redacted
+records, never raw provider payloads or full transcripts.
 """
 
 from __future__ import annotations
@@ -20,9 +21,22 @@ AUDIT_SCHEMA_VERSION = "countersignal.audit.v1"
 ALLOWED_BUCKETS = {"supporting", "disconfirming", "neutral", "nonresponse", "invalid"}
 
 
-def _recipient_fingerprint(phone: str) -> str:
-    digest = hashlib.sha256(f"countersignal-recipient:{phone}".encode()).hexdigest()
-    return f"sha256:{digest[:16]}"
+def _recipient_binding_matches(provider_result: dict[str, Any], destination: str) -> bool:
+    recipients = provider_result.get("recipients")
+    return (
+        isinstance(recipients, list)
+        and len(recipients) == 1
+        and isinstance(recipients[0], dict)
+        and recipients[0].get("phone") == destination
+    )
+
+
+def _call_bound_recipient_ref(experiment: core.Experiment, call_id: Any) -> str | None:
+    """Return an opaque public reference that is not derived from the phone number."""
+    if not isinstance(call_id, str) or not call_id:
+        return None
+    material = f"{experiment.experiment_id}:{core.protocol_hash(experiment)}:{call_id}".encode()
+    return f"call-bound:{hashlib.sha256(material).hexdigest()[:16]}"
 
 
 def evidence_record(
@@ -47,12 +61,14 @@ def evidence_record(
     quote = structured.get("key_quote", "")
     grounded = bool(quote) and core.quote_grounded(quote, transcript)
     call_id = provider_result.get("id")
+    binding_verified = _recipient_binding_matches(provider_result, recipient.phone)
 
     return {
         "schema": AUDIT_SCHEMA_VERSION,
         "source": "calle_live" if isinstance(call_id, str) and call_id else "provider_result",
         "call_id": call_id if isinstance(call_id, str) else None,
-        "recipient_ref": _recipient_fingerprint(recipient.phone),
+        "recipient_ref": _call_bound_recipient_ref(experiment, call_id),
+        "recipient_binding_verified": binding_verified,
         "experiment_id": experiment.experiment_id,
         "protocol_hash": core.protocol_hash(experiment),
         "bucket": bucket,
@@ -76,6 +92,9 @@ def _normalized_records(records: Iterable[dict[str, Any]]) -> list[dict[str, Any
         quote = record.get("quote", "")
         if not isinstance(quote, str) or len(quote) > 300:
             raise ValueError(f"evidence record {index} has invalid quote")
+        binding = record.get("recipient_binding_verified")
+        if binding is not None and not isinstance(binding, bool):
+            raise ValueError(f"evidence record {index} has invalid recipient binding flag")
         out.append(dict(record))
     return out
 
@@ -191,6 +210,7 @@ def audit_packet(
                 "source": record.get("source", "unknown"),
                 "call_id": record.get("call_id"),
                 "recipient_ref": record.get("recipient_ref"),
+                "recipient_binding_verified": bool(record.get("recipient_binding_verified", False)),
                 "bucket": record["bucket"],
                 "confidence": record.get("confidence", 0.0),
                 "grounded": bool(record.get("grounded", False)),
@@ -204,7 +224,7 @@ def audit_packet(
 
 
 class AuditLedger:
-    """Append-only SQLite ledger containing only redacted evidence records."""
+    """Append-only API over SQLite containing only redacted evidence records."""
 
     def __init__(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)
