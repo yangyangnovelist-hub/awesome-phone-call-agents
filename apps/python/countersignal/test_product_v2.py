@@ -174,6 +174,28 @@ def test_decision_fragility_reports_exact_distance_to_weaken():
     assert fragility["contradictions_to_weaken"] == 3
 
 
+def test_next_evidence_counterfactuals_identify_decision_relevant_outcome():
+    exp = experiment()
+    records = []
+    for i, bucket in enumerate(["supporting"] * 5 + ["neutral"] * 3):
+        records.append(
+            audit.evidence_record(
+                exp,
+                recipient(),
+                provider_result(bucket, f"call_cf{i}"),
+                expected_call_id=f"call_cf{i}",
+            )
+        )
+    scenarios = {
+        row["next_bucket"]: row for row in audit.next_evidence_counterfactuals(exp, records)
+    }
+    assert scenarios["disconfirming"]["before"] == "hypothesis_supported_under_rule"
+    assert scenarios["disconfirming"]["after"] == "inconclusive"
+    assert scenarios["disconfirming"]["changes_decision"] is True
+    assert scenarios["supporting"]["changes_decision"] is False
+    assert scenarios["nonresponse"]["answered_denominator_after"] == 8
+
+
 def test_benchmark_makes_three_contradictions_load_bearing():
     rows = {row["case"]: row for row in benchmark.run_benchmark(experiment())["rows"]}
     row = rows["three_grounded_contradictions"]
