@@ -19,6 +19,7 @@ from typing import Any
 import audit
 import countersignal as core
 import permission as permission_gate
+import proof_packet
 import seal
 
 
@@ -125,9 +126,11 @@ def main(argv: list[str] | None = None) -> int:
         record["permission_verified"] = True
         record["permission_channel"] = permission["channel"]
         record["permission_consented_at"] = permission["consented_at"]
+
         ledger = audit.AuditLedger(args.audit_database)
         ledger.append(experiment, record)
-        packet = seal.seal_packet(ledger.packet(experiment))
+        public_packet = proof_packet.live_audit_packet(experiment, ledger.records(experiment))
+        packet = seal.seal_packet(public_packet)
 
         args.audit_out.parent.mkdir(parents=True, exist_ok=True)
         args.audit_out.write_text(
