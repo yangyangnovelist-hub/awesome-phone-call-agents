@@ -1,20 +1,23 @@
-"""Audit and replay helpers for CounterSignal evidence.
+"""Audit, replay, and durable redacted-evidence helpers for CounterSignal.
 
-This module is deliberately privacy-minimizing: it emits a stable recipient
+The audit layer is deliberately privacy-minimizing: it emits a stable recipient
 fingerprint instead of a phone number and includes only the transcript quote
-already accepted by CounterSignal's grounding gate.
+already accepted by CounterSignal's grounding gate. The durable ledger stores
+those redacted records, never raw provider payloads or full transcripts.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
+import sqlite3
+from pathlib import Path
 from typing import Any, Iterable
 
 import countersignal as core
 
 AUDIT_SCHEMA_VERSION = "countersignal.audit.v1"
 ALLOWED_BUCKETS = {"supporting", "disconfirming", "neutral", "nonresponse", "invalid"}
-NEXT_EVIDENCE_BUCKETS = ("supporting", "neutral", "disconfirming", "nonresponse", "invalid")
 
 
 def _recipient_fingerprint(phone: str) -> str:
@@ -70,6 +73,9 @@ def _normalized_records(records: Iterable[dict[str, Any]]) -> list[dict[str, Any
         bucket = record.get("bucket")
         if bucket not in ALLOWED_BUCKETS:
             raise ValueError(f"evidence record {index} has invalid bucket")
+        quote = record.get("quote", "")
+        if not isinstance(quote, str) or len(quote) > 300:
+            raise ValueError(f"evidence record {index} has invalid quote")
         out.append(dict(record))
     return out
 
@@ -121,32 +127,31 @@ def decision_fragility(
     }
 
 
-def next_evidence_counterfactuals(
+def counterfactual_next_evidence(
     experiment: core.Experiment, records: Iterable[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Show how one additional classified outcome would affect the current decision.
+    """Show how each possible next evidence bucket would change the decision.
 
-    This is a policy counterfactual, not a prediction of what the next respondent will say.
-    It helps an operator distinguish evidence that can change the current decision from
-    evidence that only increases activity counts.
+    This is a structural sensitivity analysis, not a prediction of what a future
+    respondent will say.
     """
     items = _normalized_records(records)
-    current_buckets = [record["bucket"] for record in items]
-    current = core.experiment_decision(experiment, current_buckets)
-    scenarios: list[dict[str, Any]] = []
-    for bucket in NEXT_EVIDENCE_BUCKETS:
-        after = core.experiment_decision(experiment, [*current_buckets, bucket])
-        scenarios.append(
+    buckets = [record["bucket"] for record in items]
+    current = core.experiment_decision(experiment, buckets)
+    rows: list[dict[str, Any]] = []
+    for candidate in ("supporting", "neutral", "disconfirming", "nonresponse", "invalid"):
+        after = core.experiment_decision(experiment, [*buckets, candidate])
+        rows.append(
             {
-                "next_bucket": bucket,
+                "next_bucket": candidate,
                 "before": current["decision"],
                 "after": after["decision"],
                 "changes_decision": after["decision"] != current["decision"],
-                "answered_denominator_after": after["answered_denominator"],
-                "counts_after": after["counts"],
+                "answered_before": current["answered_denominator"],
+                "answered_after": after["answered_denominator"],
             }
         )
-    return scenarios
+    return rows
 
 
 def audit_packet(
@@ -177,7 +182,7 @@ def audit_packet(
         "answered_denominator": decision["answered_denominator"],
         "counts": decision["counts"],
         "fragility": decision_fragility(experiment, items),
-        "next_evidence_counterfactuals": next_evidence_counterfactuals(experiment, items),
+        "counterfactual_next_evidence": counterfactual_next_evidence(experiment, items),
         "replay": decision_replay(experiment, items),
         "claim_boundary": decision["claim_boundary"],
         "evidence": [
@@ -196,3 +201,64 @@ def audit_packet(
             for index, record in enumerate(items, start=1)
         ],
     }
+
+
+class AuditLedger:
+    """Append-only SQLite ledger containing only redacted evidence records."""
+
+    def __init__(self, path: Path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.path = path
+        with sqlite3.connect(path) as db:
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS evidence ("
+                "sequence INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "call_id TEXT NOT NULL UNIQUE, "
+                "experiment_id TEXT NOT NULL, "
+                "protocol_hash TEXT NOT NULL, "
+                "record_json TEXT NOT NULL)"
+            )
+
+    @staticmethod
+    def _canonical(record: dict[str, Any]) -> str:
+        return json.dumps(record, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+    def append(self, experiment: core.Experiment, record: dict[str, Any]) -> bool:
+        """Append one live record. Identical retries are idempotent; conflicts fail closed."""
+        item = _normalized_records([record])[0]
+        call_id = item.get("call_id")
+        if not isinstance(call_id, str) or not call_id:
+            raise ValueError("durable evidence requires a CALL-E call_id")
+        expected_hash = core.protocol_hash(experiment)
+        if item.get("experiment_id") != experiment.experiment_id:
+            raise ValueError("evidence belongs to a different experiment")
+        if item.get("protocol_hash") != expected_hash:
+            raise ValueError("evidence belongs to a different protocol")
+        canonical = self._canonical(item)
+        with sqlite3.connect(self.path) as db:
+            existing = db.execute(
+                "SELECT record_json FROM evidence WHERE call_id=?", (call_id,)
+            ).fetchone()
+            if existing is not None:
+                if existing[0] == canonical:
+                    return False
+                raise ValueError("call_id already exists with different evidence")
+            db.execute(
+                "INSERT INTO evidence(call_id, experiment_id, protocol_hash, record_json) "
+                "VALUES (?, ?, ?, ?)",
+                (call_id, experiment.experiment_id, expected_hash, canonical),
+            )
+        return True
+
+    def records(self, experiment: core.Experiment) -> list[dict[str, Any]]:
+        expected_hash = core.protocol_hash(experiment)
+        with sqlite3.connect(self.path) as db:
+            rows = db.execute(
+                "SELECT record_json FROM evidence WHERE experiment_id=? AND protocol_hash=? "
+                "ORDER BY sequence",
+                (experiment.experiment_id, expected_hash),
+            ).fetchall()
+        return [json.loads(row[0]) for row in rows]
+
+    def packet(self, experiment: core.Experiment) -> dict[str, Any]:
+        return audit_packet(experiment, self.records(experiment), mode="live_redacted_ledger")
