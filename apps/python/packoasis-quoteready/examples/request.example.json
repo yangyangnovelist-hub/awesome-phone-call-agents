@@ -1,0 +1,10 @@
+{
+  "request_id": "RFQ-EXAMPLE-001",
+  "lead_name": "Alex",
+  "company_name": "Example Skincare",
+  "phone": "+15555550103",
+  "region": "US",
+  "locale": "en-US",
+  "contact_basis": "inbound_inquiry",
+  "known_requirements": "The buyer asked about 50,000 custom skincare boxes and wants an accurate quotation."
+}
