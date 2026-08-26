@@ -1,0 +1,44 @@
+name: CounterSignal PR Verification
+
+on:
+  pull_request:
+    branches:
+      - agent/countersignal
+    paths:
+      - 'apps/python/countersignal/**'
+      - '.github/workflows/countersignal-pr.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/python/countersignal
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: apps/python/countersignal/pyproject.toml
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'calle-ai==0.2.0' 'pytest>=9.0.0'
+
+      - name: Run CounterSignal tests
+        run: python -m pytest -q
+
+      - name: Verify judge-visible invariants
+        run: python verify_product_v2.py
+
+      - name: Reproduce contradiction benchmark
+        run: python benchmark.py --json
