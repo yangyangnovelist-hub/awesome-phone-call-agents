@@ -1,0 +1,11 @@
+{
+  "request_id": "invoice-demo-001",
+  "caller_business_name": "Example Supplier",
+  "customer_company": "Example Customer",
+  "invoice_reference": "INV-EXAMPLE-001",
+  "support_phone": "+15555550102",
+  "region": "US",
+  "locale": "en-US",
+  "contact_basis": "existing_customer",
+  "invoice_context": "Invoice already issued through the normal business channel. Ask only for AP status, missing ordinary documents, and expected payment timing."
+}
